@@ -45,16 +45,34 @@ a {
   color: var(--gh-fg);
 }
 
+.btn:hover {
+  background: color-mix(in srgb, var(--gh-border-muted) 68%, #ffffff 12%);
+}
+
 .btn-primary {
   border-color: color-mix(in srgb, var(--gh-success) 68%, black 32%);
   background: var(--gh-success);
   color: #ffffff;
 }
 
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--gh-success) 86%, #ffffff 14%);
+}
+
 .btn-danger {
   border-color: color-mix(in srgb, var(--gh-danger) 68%, black 32%);
   background: color-mix(in srgb, var(--gh-danger) 26%, transparent 74%);
   color: #ffdcd7;
+}
+
+.btn-code {
+  border-color: color-mix(in srgb, var(--gh-accent) 62%, black 38%);
+  background: #2f81f7;
+  color: #ffffff;
+}
+
+.btn-code:hover {
+  background: color-mix(in srgb, #2f81f7 85%, #ffffff 15%);
 }
 
 .input {
@@ -86,10 +104,143 @@ a {
   margin-inline: auto;
 }
 
+.gh-ref-select {
+  display: inline-flex;
+  min-height: 32px;
+  min-width: 140px;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--gh-border);
+  border-radius: 6px;
+  background: #212830;
+  color: #f0f6fc;
+  padding: 0 0.6rem;
+}
+
+.gh-ref-select-control {
+  appearance: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.9rem;
+  min-height: 30px;
+  padding-right: 0.2rem;
+}
+
+.gh-ref-select-control option,
+.gh-ref-select-control optgroup {
+  color: #0d1117;
+}
+
+.gh-go-to-file {
+  display: inline-flex;
+  min-width: min(100%, 270px);
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--gh-border);
+  border-radius: 6px;
+  background: #0d1117;
+  color: var(--gh-fg-muted);
+  padding: 0 0.65rem;
+}
+
+.gh-go-to-file input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--gh-fg);
+  min-height: 32px;
+  width: 100%;
+}
+
+.gh-go-to-file input::placeholder {
+  color: var(--gh-fg-muted);
+}
+
+.gh-go-to-file:focus-within {
+  border-color: var(--gh-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 20%, transparent 80%);
+}
+
+.gh-toolbar-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #f0f6fc;
+  font-size: 0.95rem;
+}
+
+.gh-code-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  width: min(96vw, 360px);
+  border: 1px solid var(--gh-border);
+  border-radius: 8px;
+  background: #0d1117;
+  box-shadow: 0 14px 30px rgba(1, 4, 9, 0.48);
+}
+
+.gh-code-menu-tab {
+  border: none;
+  background: transparent;
+  color: var(--gh-fg-muted);
+  padding: 0.58rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.gh-code-menu-tab.active {
+  color: #f0f6fc;
+  border-bottom: 2px solid #f78166;
+}
+
+.gh-clone-command {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: #c9d1d9;
+}
+
+.gh-doc-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--gh-border);
+  padding-inline: 0.65rem;
+  background: #0d1117;
+}
+
+.gh-doc-tab {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
+  border-bottom: 2px solid transparent;
+  padding: 0.7rem 0.65rem;
+  font-size: 0.9rem;
+  color: var(--gh-fg-muted);
+}
+
+.gh-doc-tab:hover {
+  color: var(--gh-fg);
+}
+
+.gh-doc-tab.active {
+  color: #f0f6fc;
+  border-bottom-color: #f78166;
+}
+
 .github-markdown {
   color: var(--gh-fg);
-  font-size: 0.9rem;
-  line-height: 1.6;
+  font-size: 1rem;
+  line-height: 1.5;
+  word-wrap: break-word;
 }
 
 .github-markdown > :first-child {
@@ -102,12 +253,55 @@ a {
 
 .github-markdown h1,
 .github-markdown h2,
-.github-markdown h3 {
-  margin-top: 1.4rem;
-  margin-bottom: 0.8rem;
-  border-bottom: 1px solid var(--gh-border);
-  padding-bottom: 0.35rem;
+.github-markdown h3,
+.github-markdown h4,
+.github-markdown h5,
+.github-markdown h6 {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
   color: #f0f6fc;
+}
+
+.github-markdown h1 {
+  font-size: 2em;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--gh-border);
+}
+
+.github-markdown h2 {
+  font-size: 1.5em;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--gh-border);
+}
+
+.github-markdown h3 {
+  font-size: 1.25em;
+}
+
+.github-markdown h4 {
+  font-size: 1em;
+}
+
+.github-markdown h5 {
+  font-size: 0.875em;
+}
+
+.github-markdown h6 {
+  font-size: 0.85em;
+  color: var(--gh-fg-muted);
+}
+
+.github-markdown p,
+.github-markdown ul,
+.github-markdown ol,
+.github-markdown dl,
+.github-markdown table,
+.github-markdown blockquote,
+.github-markdown pre {
+  margin-top: 0;
+  margin-bottom: 1rem;
 }
 
 .github-markdown a {
@@ -121,35 +315,85 @@ a {
 
 .github-markdown pre {
   overflow-x: auto;
-  border: 1px solid var(--gh-border-muted);
+  border: 1px solid var(--gh-border);
   border-radius: 6px;
-  background: var(--gh-code);
-  padding: 0.75rem;
-  font-size: 0.78rem;
-  line-height: 1.55;
+  background: #0d1117;
+  padding: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
 }
 
 .github-markdown code {
-  background: color-mix(in srgb, var(--gh-border-muted) 92%, black 8%);
-  border-radius: 4px;
-  padding: 0.08rem 0.3rem;
-  font-size: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, 'Liberation Mono', monospace;
+  background: color-mix(in srgb, var(--gh-border-muted) 88%, black 12%);
+  border-radius: 6px;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.85em;
+}
+
+.github-markdown pre code {
+  display: block;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 100%;
+  color: inherit;
 }
 
 .github-markdown ul,
 .github-markdown ol {
-  margin-left: 1.2rem;
+  padding-left: 2em;
+}
+
+.github-markdown li + li {
+  margin-top: 0.25rem;
 }
 
 .github-markdown table {
   width: 100%;
   border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+
+.github-markdown blockquote {
+  margin-inline: 0;
+  border-left: 0.25em solid var(--gh-border);
+  color: var(--gh-fg-muted);
+  padding: 0 1em;
+}
+
+.github-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--gh-border);
+  margin: 1.5rem 0;
 }
 
 .github-markdown table th,
 .github-markdown table td {
   border: 1px solid var(--gh-border);
-  padding: 0.4rem 0.6rem;
+  padding: 0.38rem 0.72rem;
+}
+
+.github-markdown table th {
+  font-weight: 600;
+}
+
+.github-markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
+.github-markdown .shiki {
+  margin: 0;
+  border-radius: 6px;
+  border: 1px solid var(--gh-border);
+  background: #0d1117 !important;
+}
+
+.github-markdown .shiki code {
+  background: transparent;
+  padding: 0;
 }
 
 .gh-muted {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { codeToHtml } from 'shiki';
   import DOMPurify from 'dompurify';
+  import { highlightMarkdownCodeBlocks } from '$lib/markdown';
   import { marked } from 'marked';
   import type { BlobResponse } from '$lib/types';
 
@@ -80,7 +81,14 @@
       try {
         const rendered = await marked.parse(plainContent);
         const rewritten = rewriteMarkdownLinks(rendered);
-        markdownHtml = DOMPurify.sanitize(rewritten);
+        const highlighted = await highlightMarkdownCodeBlocks(rewritten);
+        const sanitized = DOMPurify.sanitize(highlighted);
+        markdownHtml = sanitized.trim().length > 0
+          ? sanitized
+          : `<pre>${escapeHtml(plainContent)}</pre>`;
+        if (sanitized.trim().length === 0 && plainContent.trim().length > 0) {
+          renderError = 'Markdown renderer returned empty output; showing plain text fallback.';
+        }
       } catch {
         renderError = 'Falling back to plain text because markdown rendering failed.';
         markdownHtml = `<pre>${escapeHtml(plainContent)}</pre>`;

@@ -97,7 +97,7 @@
 <section class="space-y-4">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <Breadcrumb mode="blob" path={data.path} refName={selectedRef || 'main'} repo={data.repo} />
-    <BranchSelector onSelect={changeRef} refs={refs} selected={selectedRef || 'main'} />
+    <BranchSelector compact onSelect={changeRef} refs={refs} selected={selectedRef || 'main'} />
   </div>
 
   {#if latestCommit}

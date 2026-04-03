@@ -46,9 +46,11 @@ async function request<T>(
     notifyOnError?: boolean;
     cacheTtlMs?: number;
     forceRefresh?: boolean;
+    timeoutMs?: number;
   } = {}
 ): Promise<T> {
   const method = options.method ?? 'GET';
+  const timeoutMs = options.timeoutMs ?? 30_000;
   const cacheTtlMs = options.cacheTtlMs ?? 0;
   const shouldCache = method === 'GET' && cacheTtlMs > 0;
   const cacheKey = shouldCache ? `${method}:${path}` : '';
@@ -70,12 +72,30 @@ async function request<T>(
 
   const execute = async (): Promise<T> => {
     apiLoading.set(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(`${apiBase}/api${path}`, {
-        method,
-        headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
-        body: options.body ? JSON.stringify(options.body) : undefined
-      });
+      let response: Response;
+      try {
+        response = await fetch(`${apiBase}/api${path}`, {
+          method,
+          headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+          body: options.body ? JSON.stringify(options.body) : undefined,
+          signal: controller.signal
+        });
+      } catch (error) {
+        const isTimeout =
+          error instanceof DOMException && error.name === 'AbortError';
+        const message = isTimeout
+          ? `Request timed out after ${Math.round(timeoutMs / 1000)}s.`
+          : error instanceof Error
+            ? error.message
+            : 'Network request failed.';
+        if (options.notifyOnError ?? true) {
+          toast(message, 'error');
+        }
+        throw new Error(message);
+      }
 
       if (response.ok === false) {
         const payload = (await response.json().catch(() => null)) as
@@ -101,6 +121,7 @@ async function request<T>(
       }
       return payload;
     } finally {
+      clearTimeout(timeoutId);
       apiLoading.set(false);
     }
   };
