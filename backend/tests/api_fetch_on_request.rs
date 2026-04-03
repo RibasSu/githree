@@ -34,6 +34,20 @@ async fn api_routes_trigger_fetch_when_enabled() {
         .await;
     add.assert_status_ok();
 
+    let initial_list = server.get("/api/repos").await;
+    initial_list.assert_status_ok();
+    let initial_repos: Vec<RepoInfo> = initial_list.json();
+    let initial_last_fetched = initial_repos
+        .first()
+        .and_then(|repo| repo.last_fetched)
+        .expect("repo should expose last_fetched");
+
+    fixture.add_remote_commit(
+        "fetched-on-request.txt",
+        b"fetch-on-request marker\n",
+        "test: trigger on-request metadata refresh",
+    );
+
     server
         .get("/api/repos/fetch-repo/refs")
         .await
@@ -82,4 +96,8 @@ async fn api_routes_trigger_fetch_when_enabled() {
     list.assert_status_ok();
     let repos: Vec<RepoInfo> = list.json();
     assert_eq!(repos.len(), 1);
+    let updated_last_fetched = repos[0]
+        .last_fetched
+        .expect("last_fetched should be present after on-request fetch");
+    assert!(updated_last_fetched >= initial_last_fetched);
 }

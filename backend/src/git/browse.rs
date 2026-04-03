@@ -309,6 +309,32 @@ pub fn commit_history(
     Ok(commits)
 }
 
+pub fn commit_count(
+    local_path: &Path,
+    ref_name: &str,
+    path: Option<&str>,
+) -> Result<usize, AppError> {
+    let repo = Repository::open_bare(local_path)?;
+    let commit = resolve_commit(&repo, ref_name)?;
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push(commit.id())?;
+    revwalk.set_sorting(git2::Sort::TIME)?;
+
+    let path_filter = path.unwrap_or("").trim().to_string();
+    let mut total = 0usize;
+
+    for oid_result in revwalk {
+        let oid = oid_result?;
+        let commit = repo.find_commit(oid)?;
+        if !path_filter.is_empty() && !commit_touches_path(&repo, &commit, &path_filter)? {
+            continue;
+        }
+        total = total.saturating_add(1);
+    }
+
+    Ok(total)
+}
+
 pub fn commit_detail(local_path: &Path, hash: &str) -> Result<CommitDetail, AppError> {
     let repo = Repository::open_bare(local_path)?;
     let oid = Oid::from_str(hash).or_else(|_| repo.revparse_single(hash).map(|obj| obj.id()))?;

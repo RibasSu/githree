@@ -5,7 +5,7 @@ use tokio::task::spawn_blocking;
 use tracing::instrument;
 
 use crate::error::AppError;
-use crate::git::{self, CommitDetail, CommitInfo};
+use crate::git::{self, CommitCountResponse, CommitDetail, CommitInfo};
 use crate::handlers::sync::{ensure_repo_ready, join_error};
 use crate::state::AppState;
 
@@ -56,4 +56,28 @@ pub async fn get_commit_detail(
         .await
         .map_err(join_error)??;
     Ok(Json(detail))
+}
+
+#[instrument(skip(state, query), fields(repo_name = %name))]
+pub async fn get_commit_count(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Query(query): Query<CommitsQuery>,
+) -> Result<Json<CommitCountResponse>, AppError> {
+    let repo = state.registry.get(&name).await?;
+    let ref_name = query
+        .ref_name
+        .unwrap_or_else(|| repo.default_branch.clone());
+    let path_filter = query.path.clone();
+    let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
+
+    ensure_repo_ready(state.clone(), &name, local_path.clone(), repo.url.clone()).await?;
+
+    let count = spawn_blocking(move || {
+        git::browse::commit_count(&local_path, &ref_name, path_filter.as_deref())
+    })
+    .await
+    .map_err(join_error)??;
+
+    Ok(Json(CommitCountResponse { count }))
 }

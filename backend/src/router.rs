@@ -32,6 +32,10 @@ pub fn build_router(state: AppState) -> Router {
             get(handlers::commits::list_commits),
         )
         .route(
+            "/repos/{name}/commits/count",
+            get(handlers::commits::get_commit_count),
+        )
+        .route(
             "/repos/{name}/commit/{hash}",
             get(handlers::commits::get_commit_detail),
         )

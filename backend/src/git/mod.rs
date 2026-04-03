@@ -83,6 +83,11 @@ pub struct CommitInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitCountResponse {
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiffStats {
     pub files_changed: usize,
     pub insertions: usize,

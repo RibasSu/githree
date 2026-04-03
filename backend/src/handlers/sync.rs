@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use chrono::Utc;
 use tokio::task::spawn_blocking;
 use tracing::warn;
 
@@ -13,6 +14,8 @@ pub async fn ensure_repo_ready(
     local_path: PathBuf,
     url: String,
 ) -> Result<(), AppError> {
+    let mut synced_now = false;
+
     if !local_path.exists() {
         let config = state.config.clone();
         let clone_path = local_path.clone();
@@ -22,9 +25,13 @@ pub async fn ensure_repo_ready(
         })
         .await
         .map_err(join_error)??;
+        synced_now = true;
     }
 
     if !state.config.git.fetch_on_request {
+        if synced_now {
+            refresh_repository_metadata(&state, repo_name).await;
+        }
         return Ok(());
     }
 
@@ -37,7 +44,10 @@ pub async fn ensure_repo_ready(
     let config = state.config.clone();
     let repo_name = repo_name.to_string();
     let outcome = spawn_blocking(move || git::clone::fetch_repo(&local_path, &url, &config)).await;
-    handle_fetch_outcome(&state, &repo_name, outcome);
+    synced_now = handle_fetch_outcome(&state, &repo_name, outcome) || synced_now;
+    if synced_now {
+        refresh_repository_metadata(&state, &repo_name).await;
+    }
 
     Ok(())
 }
@@ -46,18 +56,61 @@ fn handle_fetch_outcome(
     state: &AppState,
     repo_name: &str,
     outcome: Result<Result<(), AppError>, tokio::task::JoinError>,
-) {
+) -> bool {
     match outcome {
         Ok(Ok(())) => {
             state.tree_cache.invalidate_all();
             state.language_cache.invalidate_all();
+            true
         }
         Ok(Err(err)) => {
             warn!(repo = %repo_name, error = %err, "on-request fetch failed");
+            false
         }
         Err(err) => {
             warn!(repo = %repo_name, error = %err, "on-request fetch join failed");
+            false
         }
+    }
+}
+
+async fn refresh_repository_metadata(state: &AppState, repo_name: &str) {
+    let existing = match state.registry.get(repo_name).await {
+        Ok(value) => value,
+        Err(err) => {
+            warn!(repo = %repo_name, error = %err, "failed to load repository metadata");
+            return;
+        }
+    };
+
+    let repos_dir = state.config.repos_dir();
+    let local_path = git::repo_disk_path(&repos_dir, repo_name);
+    let stats = spawn_blocking(move || {
+        let repo = git::clone::open_bare_repo(&local_path)?;
+        let default_branch = git::clone::default_branch(&repo)?;
+        let size_kb = git::clone::repo_size_kb(&local_path)?;
+        Ok::<(String, u64), AppError>((default_branch, size_kb))
+    })
+    .await;
+
+    let (default_branch, size_kb) = match stats {
+        Ok(Ok(value)) => value,
+        Ok(Err(err)) => {
+            warn!(repo = %repo_name, error = %err, "failed to refresh repository stats");
+            return;
+        }
+        Err(err) => {
+            warn!(repo = %repo_name, error = %err, "repository stats join failed");
+            return;
+        }
+    };
+
+    let mut updated = existing;
+    updated.default_branch = default_branch;
+    updated.size_kb = size_kb;
+    updated.last_fetched = Some(Utc::now());
+    if let Err(err) = state.registry.upsert(updated).await {
+        warn!(repo = %repo_name, error = %err, "failed to persist repository metadata");
     }
 }
 

@@ -2,8 +2,8 @@ mod common;
 
 use axum_test::TestServer;
 use githree::git::{
-    BlobResponse, CommitDetail, CommitInfo, LanguageStat, ReadmeResponse, RefsResponse, RepoInfo,
-    TreeEntry,
+    BlobResponse, CommitCountResponse, CommitDetail, CommitInfo, LanguageStat, ReadmeResponse,
+    RefsResponse, RepoInfo, TreeEntry,
 };
 use githree::registry::RepoRegistry;
 use githree::router;
@@ -118,6 +118,14 @@ async fn api_repository_lifecycle_and_browsing_routes_work() {
     commits.assert_status_ok();
     let commit_entries: Vec<CommitInfo> = commits.json();
     assert_eq!(commit_entries.len(), 2);
+
+    let commit_count = server
+        .get("/api/repos/sample-repo/commits/count")
+        .add_query_param("ref", "main")
+        .await;
+    commit_count.assert_status_ok();
+    let commit_count_payload: CommitCountResponse = commit_count.json();
+    assert!(commit_count_payload.count >= commit_entries.len());
 
     let commit_detail = server
         .get(&format!(

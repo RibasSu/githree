@@ -100,6 +100,9 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
     assert_eq!(history.len(), 3);
     assert!(history.iter().all(|commit| !commit.hash.is_empty()));
 
+    let commit_count = git::browse::commit_count(&local_path, "main", None).expect("commit count");
+    assert_eq!(commit_count, 4);
+
     let skipped_history = git::browse::commit_history(&local_path, "main", None, 1, 2)
         .expect("commit history with skip");
     assert_eq!(skipped_history.len(), 2);
