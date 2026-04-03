@@ -182,7 +182,8 @@ mod tests {
             },
             fetch: FetchConfig {
                 enabled: false,
-                interval_minutes: 30,
+                interval: Some("60s".to_string()),
+                interval_minutes: None,
             },
             repos: ReposConfig {
                 credentials: vec![RepoCredential {

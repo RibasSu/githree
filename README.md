@@ -92,7 +92,7 @@ ssh_private_key_path = "~/.ssh/id_rsa"
 
 [fetch]
 enabled = false
-interval_minutes = 30
+interval = "60s"
 
 [repos]
 credentials = []
@@ -107,6 +107,18 @@ You can override this flag at runtime:
 
 ```bash
 GITHREE_WEB_REPO_MANAGEMENT=true ./githree
+```
+
+Background sync interval supports seconds, minutes, and hours:
+
+- `interval = "60s"` (default when omitted)
+- `interval = "5m"`
+- `interval = "1h"`
+
+You can also override it at runtime:
+
+```bash
+GITHREE_FETCH_INTERVAL=2m ./githree
 ```
 
 ### HTTPS Credentials Per Host

@@ -165,7 +165,8 @@ pub fn test_config(base: &Path) -> AppConfig {
         },
         fetch: FetchConfig {
             enabled: false,
-            interval_minutes: 30,
+            interval: Some("60s".to_string()),
+            interval_minutes: None,
         },
         repos: ReposConfig::default(),
         features: FeaturesConfig {

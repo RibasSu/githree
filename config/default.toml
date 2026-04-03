@@ -14,8 +14,8 @@ fetch_cooldown_secs = 20
 ssh_private_key_path = "~/.ssh/id_rsa"
 
 [fetch]
-enabled = false
-interval_minutes = 30
+enabled = true
+interval = "60s"
 
 [repos]
 credentials = []

@@ -48,10 +48,22 @@ fn init_tracing() {
 }
 
 async fn run_periodic_fetch(state: AppState) {
-    let interval_minutes = state.config.fetch.interval_minutes.max(1);
-    info!(interval_minutes, "background fetch scheduler started");
+    let interval = match state.config.fetch.sync_interval() {
+        Ok(value) => value,
+        Err(err) => {
+            warn!(
+                error = %err,
+                "invalid fetch interval in runtime config, falling back to 60s"
+            );
+            Duration::from_secs(60)
+        }
+    };
+    info!(
+        interval_secs = interval.as_secs(),
+        "background fetch scheduler started"
+    );
 
-    let mut ticker = time::interval(Duration::from_secs(interval_minutes * 60));
+    let mut ticker = time::interval(interval);
     ticker.tick().await;
 
     loop {
@@ -157,7 +169,8 @@ mod tests {
             },
             fetch: FetchConfig {
                 enabled: true,
-                interval_minutes: 1,
+                interval: Some("1s".to_string()),
+                interval_minutes: None,
             },
             repos: ReposConfig::default(),
             features: FeaturesConfig {

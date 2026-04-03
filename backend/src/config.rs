@@ -1,5 +1,6 @@
 use std::env;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use config::{Config, File};
 use serde::Deserialize;
@@ -46,7 +47,10 @@ pub struct GitConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct FetchConfig {
     pub enabled: bool,
-    pub interval_minutes: u64,
+    #[serde(default)]
+    pub interval: Option<String>,
+    #[serde(default)]
+    pub interval_minutes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -101,7 +105,8 @@ impl Default for FetchConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            interval_minutes: 30,
+            interval: Some("60s".to_string()),
+            interval_minutes: None,
         }
     }
 }
@@ -126,6 +131,10 @@ impl AppConfig {
         if let Ok(value) = env::var("GITHREE_WEB_REPO_MANAGEMENT") {
             cfg.features.web_repo_management = parse_bool_env(&value)?;
         }
+        if let Ok(value) = env::var("GITHREE_FETCH_INTERVAL") {
+            cfg.fetch.interval = Some(value);
+        }
+        cfg.fetch.sync_interval()?;
         Ok(cfg)
     }
 
@@ -146,6 +155,26 @@ impl AppConfig {
     }
 }
 
+impl FetchConfig {
+    pub fn sync_interval(&self) -> Result<Duration, AppError> {
+        if let Some(value) = self.interval.as_ref() {
+            return parse_sync_interval(value);
+        }
+        if let Some(minutes) = self.interval_minutes {
+            if minutes == 0 {
+                return Err(AppError::InvalidRequest(
+                    "fetch interval_minutes must be greater than 0".to_string(),
+                ));
+            }
+            let seconds = minutes.checked_mul(60).ok_or_else(|| {
+                AppError::InvalidRequest("fetch interval_minutes is too large".to_string())
+            })?;
+            return Ok(Duration::from_secs(seconds));
+        }
+        Ok(Duration::from_secs(60))
+    }
+}
+
 fn parse_bool_env(value: &str) -> Result<bool, AppError> {
     match value.trim().to_ascii_lowercase().as_str() {
         "1" | "true" | "yes" | "on" => Ok(true),
@@ -154,6 +183,51 @@ fn parse_bool_env(value: &str) -> Result<bool, AppError> {
             "invalid boolean for GITHREE_WEB_REPO_MANAGEMENT: {other}"
         ))),
     }
+}
+
+fn parse_sync_interval(value: &str) -> Result<Duration, AppError> {
+    let normalized = value.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return Err(AppError::InvalidRequest(
+            "fetch interval cannot be empty".to_string(),
+        ));
+    }
+
+    let split_index = normalized
+        .find(|ch: char| !ch.is_ascii_digit())
+        .unwrap_or(normalized.len());
+    let (amount_raw, unit_raw) = normalized.split_at(split_index);
+    if amount_raw.is_empty() {
+        return Err(AppError::InvalidRequest(
+            "fetch interval must start with a positive integer".to_string(),
+        ));
+    }
+
+    let amount = amount_raw.parse::<u64>().map_err(|_| {
+        AppError::InvalidRequest("fetch interval has an invalid numeric value".to_string())
+    })?;
+    if amount == 0 {
+        return Err(AppError::InvalidRequest(
+            "fetch interval must be greater than 0".to_string(),
+        ));
+    }
+
+    let unit = unit_raw.trim();
+    let seconds = match unit {
+        "" | "s" | "sec" | "secs" | "second" | "seconds" => amount,
+        "m" | "min" | "mins" | "minute" | "minutes" => amount
+            .checked_mul(60)
+            .ok_or_else(|| AppError::InvalidRequest("fetch interval is too large".to_string()))?,
+        "h" | "hr" | "hrs" | "hour" | "hours" => amount
+            .checked_mul(3_600)
+            .ok_or_else(|| AppError::InvalidRequest("fetch interval is too large".to_string()))?,
+        other => {
+            return Err(AppError::InvalidRequest(format!(
+                "invalid fetch interval unit '{other}'. Use s, m, or h (for example: 60s, 5m, 1h)"
+            )));
+        }
+    };
+    Ok(Duration::from_secs(seconds))
 }
 
 fn expand_tilde(path: &str) -> String {
@@ -166,4 +240,37 @@ fn expand_tilde(path: &str) -> String {
             .to_string();
     }
     path.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fetch_interval_parses_seconds_minutes_and_hours() {
+        assert_eq!(
+            parse_sync_interval("60s").expect("parse 60s"),
+            Duration::from_secs(60)
+        );
+        assert_eq!(
+            parse_sync_interval("5m").expect("parse 5m"),
+            Duration::from_secs(300)
+        );
+        assert_eq!(
+            parse_sync_interval("2h").expect("parse 2h"),
+            Duration::from_secs(7_200)
+        );
+        assert_eq!(
+            parse_sync_interval("90").expect("parse bare seconds"),
+            Duration::from_secs(90)
+        );
+    }
+
+    #[test]
+    fn fetch_interval_rejects_invalid_values() {
+        assert!(parse_sync_interval("").is_err());
+        assert!(parse_sync_interval("0s").is_err());
+        assert!(parse_sync_interval("x10m").is_err());
+        assert!(parse_sync_interval("10d").is_err());
+    }
 }
