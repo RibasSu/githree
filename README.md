@@ -28,6 +28,16 @@ The goal is simple: browse any git repository (public or private, when credentia
 - Rendering: Shiki, marked, DOMPurify, lucide-svelte
 - Caching: moka (in-memory tree cache, 60s TTL)
 
+## CI
+
+- GitHub: security scanning via CodeQL workflow (`.github/workflows/codeql.yml`)
+- GitLab: test/build pipeline via `.gitlab-ci.yml`:
+  - backend (`cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`)
+  - frontend (`bun run check`, `bun run build`)
+  - Docker image build verification (`docker build`)
+
+The GitLab pipeline is test-only (no deployment/publish job).
+
 ## Repository Layout
 
 ```text

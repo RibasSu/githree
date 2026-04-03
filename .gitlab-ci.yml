@@ -1,0 +1,60 @@
+stages:
+  - backend
+  - frontend
+  - docker
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
+default:
+  interruptible: true
+
+variables:
+  CARGO_TERM_COLOR: always
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_DRIVER: overlay2
+
+backend_ci:
+  stage: backend
+  image: rust:1.85-slim
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends libssl-dev pkg-config libgit2-dev cmake ca-certificates git
+    - rm -rf /var/lib/apt/lists/*
+  cache:
+    key: cargo-${CI_COMMIT_REF_SLUG}
+    paths:
+      - backend/target
+      - /usr/local/cargo/registry
+      - /usr/local/cargo/git
+  script:
+    - cd backend
+    - cargo fmt --check
+    - cargo clippy -- -D warnings
+    - cargo test --all
+
+frontend_ci:
+  stage: frontend
+  image: oven/bun:1.3.11
+  cache:
+    key: bun-${CI_COMMIT_REF_SLUG}
+    paths:
+      - frontend/node_modules
+      - frontend/.svelte-kit
+      - .bun/install/cache
+  script:
+    - cd frontend
+    - bun install --frozen-lockfile
+    - bun run check
+    - bun run build
+
+docker_build_ci:
+  stage: docker
+  image: docker:27.1.1
+  services:
+    - docker:27.1.1-dind
+  script:
+    - docker build -t githree:ci .
