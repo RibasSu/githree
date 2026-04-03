@@ -42,6 +42,7 @@ pnpm-debug.log*
 # ----- Runtime data -----
 /data/*
 backend/data
+/backend/repos.json
 !/data/.gitkeep
 !/data/.gitignore
 .run
