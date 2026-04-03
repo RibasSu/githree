@@ -51,6 +51,32 @@ docker-compose.yml
 
 ## Quick Start
 
+### Guided Docker Installer (Recommended)
+
+Use the root installer to prepare and launch Githree with Docker:
+
+```bash
+./install.sh
+```
+
+What it does:
+
+- Detects Linux/macOS and checks required dependencies (`docker`, compose support)
+- Offers to install missing dependencies immediately when possible
+- Verifies Docker daemon availability (and helps start it)
+- Prompts for ports, `RUST_LOG`, and optional Caddy reverse proxy setup
+- Generates runtime deployment files:
+  - `.run/install/docker-compose.install.yml`
+  - `.run/install/Caddyfile` (when Caddy is enabled)
+- Writes a detailed timestamped log file:
+  - `.logs/install-YYYYMMDD-HHMMSS.log`
+
+Non-interactive mode (defaults):
+
+```bash
+./install.sh --yes
+```
+
 ### Docker
 
 ```bash
