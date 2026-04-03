@@ -36,20 +36,17 @@ pub async fn ensure_repo_ready(
     state.fetch_guard_cache.insert(fetch_key, ()).await;
     let config = state.config.clone();
     let repo_name = repo_name.to_string();
-    let fetch_state = state.clone();
-    tokio::spawn(async move {
-        match spawn_blocking(move || git::clone::fetch_repo(&local_path, &url, &config)).await {
-            Ok(Ok(())) => {
-                fetch_state.tree_cache.invalidate_all();
-            }
-            Ok(Err(err)) => {
-                warn!(repo = %repo_name, error = %err, "on-request background fetch failed")
-            }
-            Err(err) => {
-                warn!(repo = %repo_name, error = %err, "on-request background fetch join failed")
-            }
+    match spawn_blocking(move || git::clone::fetch_repo(&local_path, &url, &config)).await {
+        Ok(Ok(())) => {
+            state.tree_cache.invalidate_all();
         }
-    });
+        Ok(Err(err)) => {
+            warn!(repo = %repo_name, error = %err, "on-request fetch failed");
+        }
+        Err(err) => {
+            warn!(repo = %repo_name, error = %err, "on-request fetch join failed");
+        }
+    }
 
     Ok(())
 }

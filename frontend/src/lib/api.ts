@@ -178,7 +178,7 @@ export const api = {
   },
 
   getRefs(name: string) {
-    return request<RefsResponse>(`/repos/${encodeURIComponent(name)}/refs`, { cacheTtlMs: 30_000 });
+    return request<RefsResponse>(`/repos/${encodeURIComponent(name)}/refs`);
   },
 
   getTree(name: string, refName: string, path = '') {
