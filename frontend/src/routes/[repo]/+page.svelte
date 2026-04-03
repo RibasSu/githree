@@ -51,9 +51,30 @@
   let codeMenuOpen = $state(false);
   let cloneTab = $state<'https' | 'ssh' | 'cli'>('https');
   let loading = $state(true);
+  let codeMenuRoot = $state<HTMLElement | null>(null);
 
   onMount(() => {
     void bootstrap();
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!codeMenuOpen) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (codeMenuRoot?.contains(target)) return;
+      codeMenuOpen = false;
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      codeMenuOpen = false;
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   });
 
   $effect(() => {
@@ -695,7 +716,7 @@
                 {/if}
               </div>
 
-              <div class="relative">
+              <div bind:this={codeMenuRoot} class="relative">
                 <button
                   aria-expanded={codeMenuOpen}
                   class="btn btn-code"
