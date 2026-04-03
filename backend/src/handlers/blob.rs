@@ -83,12 +83,8 @@ pub async fn get_raw(
         .await
         .map_err(join_error)??;
 
-    let content_type = HeaderValue::from_str(&raw.mime)
-        .map_err(|err| AppError::InvalidRequest(format!("invalid MIME type: {err}")))?;
-    let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", raw.file_name))
-        .map_err(|err| {
-            AppError::InvalidRequest(format!("invalid file name in content disposition: {err}"))
-        })?;
+    let content_type = raw_mime_header(&raw.mime)?;
+    let disposition = raw_disposition_header(&raw.file_name)?;
 
     Ok((
         [
@@ -97,4 +93,37 @@ pub async fn get_raw(
         ],
         Bytes::from(raw.content),
     ))
+}
+
+fn raw_mime_header(mime: &str) -> Result<HeaderValue, AppError> {
+    HeaderValue::from_str(mime)
+        .map_err(|err| AppError::InvalidRequest(format!("invalid MIME type: {err}")))
+}
+
+fn raw_disposition_header(file_name: &str) -> Result<HeaderValue, AppError> {
+    HeaderValue::from_str(&format!("attachment; filename=\"{}\"", file_name)).map_err(|err| {
+        AppError::InvalidRequest(format!("invalid file name in content disposition: {err}"))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_header_builders_validate_inputs() {
+        let mime_err = raw_mime_header("text/plain\nx").expect_err("invalid mime must fail");
+        assert!(matches!(
+            mime_err,
+            AppError::InvalidRequest(message) if message.contains("invalid MIME type")
+        ));
+
+        let file_err =
+            raw_disposition_header("bad\nfile.txt").expect_err("invalid filename must fail");
+        assert!(matches!(
+            file_err,
+            AppError::InvalidRequest(message)
+                if message.contains("invalid file name in content disposition")
+        ));
+    }
 }

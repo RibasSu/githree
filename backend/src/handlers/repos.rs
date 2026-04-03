@@ -181,3 +181,165 @@ fn ensure_management_enabled(state: &AppState) -> Result<(), AppError> {
         "repository management via web API is disabled".to_string(),
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::Path;
+    use std::process::Command;
+
+    use crate::config::{
+        AppConfig, FeaturesConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
+    };
+    use crate::registry::RepoRegistry;
+
+    use super::*;
+
+    fn make_config(base: &Path) -> AppConfig {
+        AppConfig {
+            server: ServerConfig {
+                host: "127.0.0.1".to_string(),
+                port: 0,
+            },
+            storage: StorageConfig {
+                repos_dir: base.join("repos").to_string_lossy().to_string(),
+                registry_file: base.join("repos.json").to_string_lossy().to_string(),
+                static_dir: base.join("static").to_string_lossy().to_string(),
+            },
+            git: GitConfig {
+                clone_timeout_secs: 10,
+                fetch_on_request: false,
+                fetch_cooldown_secs: 20,
+                ssh_private_key_path: "~/.ssh/id_rsa".to_string(),
+            },
+            fetch: FetchConfig {
+                enabled: false,
+                interval: Some("60s".to_string()),
+                interval_minutes: None,
+            },
+            repos: ReposConfig::default(),
+            features: FeaturesConfig {
+                web_repo_management: true,
+            },
+        }
+    }
+
+    fn run_git(args: &[&str], cwd: Option<&Path>) {
+        let mut cmd = Command::new("git");
+        cmd.args(args);
+        if let Some(path) = cwd {
+            cmd.current_dir(path);
+        }
+        let output = cmd.output().expect("run git command");
+        assert!(output.status.success());
+    }
+
+    fn create_remote_fixture(base: &Path) -> (String, std::path::PathBuf) {
+        let work = base.join("work");
+        let remote = base.join("remote.git");
+        run_git(
+            &[
+                "init",
+                "--initial-branch=main",
+                work.to_str().expect("utf-8 path"),
+            ],
+            None,
+        );
+        run_git(&["config", "user.name", "Repos Test"], Some(&work));
+        run_git(
+            &["config", "user.email", "repos-test@example.com"],
+            Some(&work),
+        );
+        fs::write(work.join("README.md"), "repos test\n").expect("write readme");
+        run_git(&["add", "."], Some(&work));
+        run_git(&["commit", "-m", "init"], Some(&work));
+        run_git(
+            &[
+                "clone",
+                "--bare",
+                work.to_str().expect("utf-8 path"),
+                remote.to_str().expect("utf-8 path"),
+            ],
+            None,
+        );
+        (remote.to_string_lossy().to_string(), remote)
+    }
+
+    #[tokio::test]
+    async fn clone_or_fetch_repo_timeout_maps_to_clone_error() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("repos")).expect("create repos dir");
+
+        let mut config = make_config(temp.path());
+        config.git.clone_timeout_secs = 0;
+        let registry = RepoRegistry::new(config.registry_file())
+            .await
+            .expect("create registry");
+        let state = AppState::new(config, registry);
+
+        let local_path = state.config.repos_dir().join("timeout-repo");
+        let err = clone_or_fetch_repo(
+            state,
+            local_path,
+            "https://example.com/never-cloned.git".to_string(),
+            false,
+        )
+        .await
+        .expect_err("timeout must fail");
+        match err {
+            AppError::CloneError(message) => assert!(message.contains("timed out")),
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn build_repo_info_reports_git_errors_for_invalid_repo_path() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let err = build_repo_info(
+            "invalid".to_string(),
+            "https://example.com/repo.git".to_string(),
+            temp.path().join("missing-repo-path"),
+        )
+        .await
+        .expect_err("missing repo should fail");
+        match err {
+            AppError::GitError(_) | AppError::IoError(_) => {}
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn clone_or_fetch_and_build_repo_info_work_for_valid_repo() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("repos")).expect("create repos dir");
+        let (remote_url, _) = create_remote_fixture(temp.path());
+
+        let config = make_config(temp.path());
+        let registry = RepoRegistry::new(config.registry_file())
+            .await
+            .expect("create registry");
+        let state = AppState::new(config, registry);
+
+        let local_path = state.config.repos_dir().join("ok-repo");
+        clone_or_fetch_repo(state.clone(), local_path.clone(), remote_url.clone(), false)
+            .await
+            .expect("clone repo");
+
+        let info = build_repo_info("ok-repo".to_string(), remote_url, local_path)
+            .await
+            .expect("build repo info");
+        assert_eq!(info.name, "ok-repo");
+        assert!(!info.default_branch.is_empty());
+    }
+
+    #[tokio::test]
+    async fn join_error_maps_to_io_error() {
+        let panic_join_error = tokio::spawn(async { panic!("panic for join_error test") })
+            .await
+            .expect_err("must return join error");
+        match super::join_error(panic_join_error) {
+            AppError::IoError(message) => assert!(message.contains("blocking task join error")),
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}

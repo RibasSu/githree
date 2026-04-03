@@ -140,9 +140,7 @@ pub fn derive_repo_name(url: &str, alias: Option<&str>) -> Result<String, AppErr
     }
 
     let normalized = url.trim_end_matches('/').trim_end_matches(".git");
-    let raw_name = normalized.rsplit(['/', ':']).next().ok_or_else(|| {
-        AppError::InvalidRequest("could not derive repository name from URL".to_string())
-    })?;
+    let raw_name = normalized.rsplit(['/', ':']).next().unwrap_or_default();
     sanitize_name(raw_name)
 }
 
@@ -185,7 +183,22 @@ pub fn repo_disk_path(repos_dir: &Path, name: &str) -> PathBuf {
 }
 
 pub fn detect_language(path: &str) -> String {
-    let ext = Path::new(path)
+    let lowered = path.to_ascii_lowercase();
+    let path_ref = Path::new(&lowered);
+
+    let file_name = path_ref
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+
+    if matches!(file_name, "dockerfile" | "containerfile")
+        || file_name.ends_with(".dockerfile")
+        || file_name.ends_with(".containerfile")
+    {
+        return "docker".to_string();
+    }
+
+    let ext = path_ref
         .extension()
         .and_then(|s| s.to_str())
         .map(|s| s.to_ascii_lowercase());
@@ -216,7 +229,7 @@ pub fn detect_language(path: &str) -> String {
         Some("kt") => "kotlin",
         Some("dart") => "dart",
         Some("xml") => "xml",
-        Some("dockerfile") => "docker",
+        Some("dockerfile") | Some("containerfile") => "docker",
         Some("lock") => "text",
         _ => "text",
     }

@@ -131,6 +131,10 @@ async fn api_repository_lifecycle_and_browsing_routes_work() {
     archive_zip.assert_status_ok();
     assert!(!archive_zip.as_bytes().is_empty());
 
+    let archive_default = server.get("/api/repos/sample-repo/archive").await;
+    archive_default.assert_status_ok();
+    assert!(!archive_default.as_bytes().is_empty());
+
     let new_hash = fixture.add_remote_commit(
         "fetched-through-api.txt",
         b"new file from remote update\n",

@@ -49,12 +49,8 @@ pub async fn get_archive(
 async fn stream_archive(archive: ArchiveResponse) -> Result<impl IntoResponse, AppError> {
     let file = File::open(&archive.path).await?;
     let stream = ReaderStream::new(file);
-    let content_type = HeaderValue::from_str(&archive.content_type)
-        .map_err(|err| AppError::InvalidRequest(format!("invalid content type: {err}")))?;
-    let content_disposition =
-        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", archive.file_name)).map_err(
-            |err| AppError::InvalidRequest(format!("invalid content disposition: {err}")),
-        )?;
+    let content_type = content_type_header(&archive.content_type)?;
+    let content_disposition = content_disposition_header(&archive.file_name)?;
 
     cleanup_archive_later(archive.path.clone());
     Ok((
@@ -67,8 +63,74 @@ async fn stream_archive(archive: ArchiveResponse) -> Result<impl IntoResponse, A
 }
 
 fn cleanup_archive_later(path: PathBuf) {
+    cleanup_archive_after(path, Duration::from_secs(120));
+}
+
+fn cleanup_archive_after(path: PathBuf, delay: Duration) {
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(120)).await;
+        tokio::time::sleep(delay).await;
         let _ = tokio::fs::remove_file(path).await;
     });
+}
+
+fn content_type_header(value: &str) -> Result<HeaderValue, AppError> {
+    HeaderValue::from_str(value)
+        .map_err(|err| AppError::InvalidRequest(format!("invalid content type: {err}")))
+}
+
+fn content_disposition_header(file_name: &str) -> Result<HeaderValue, AppError> {
+    HeaderValue::from_str(&format!("attachment; filename=\"{}\"", file_name))
+        .map_err(|err| AppError::InvalidRequest(format!("invalid content disposition: {err}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn stream_archive_rejects_invalid_headers() {
+        let temp = tempdir().expect("tempdir");
+        let path = temp.path().join("archive.bin");
+        fs::write(&path, b"archive-bytes").expect("write archive file");
+
+        let bad_type = ArchiveResponse {
+            content_type: "text/plain\nx".to_string(),
+            file_name: "ok.zip".to_string(),
+            path: path.clone(),
+        };
+        let bad_type_result = stream_archive(bad_type).await;
+        assert!(matches!(
+            bad_type_result,
+            Err(AppError::InvalidRequest(message)) if message.contains("invalid content type")
+        ));
+
+        let bad_disposition = ArchiveResponse {
+            content_type: "application/zip".to_string(),
+            file_name: "bad\nname.zip".to_string(),
+            path,
+        };
+        let bad_disposition_result = stream_archive(bad_disposition).await;
+        assert!(matches!(
+            bad_disposition_result,
+            Err(AppError::InvalidRequest(message))
+                if message.contains("invalid content disposition")
+        ));
+    }
+
+    #[tokio::test]
+    async fn cleanup_archive_after_removes_file() {
+        let temp = tempdir().expect("tempdir");
+        let path = temp.path().join("to-remove.tar.gz");
+        fs::write(&path, b"temp archive").expect("write temp archive");
+        assert!(path.exists());
+
+        cleanup_archive_after(path.clone(), Duration::from_millis(10));
+        tokio::time::sleep(Duration::from_millis(40)).await;
+
+        assert!(!path.exists());
+    }
 }

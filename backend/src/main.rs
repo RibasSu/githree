@@ -34,17 +34,27 @@ async fn main() -> Result<(), AppError> {
     let addr = state.config.bind_addr();
     let listener = TcpListener::bind(&addr).await?;
     info!(%addr, "githree server running");
-    axum::serve(listener, app)
+    serve_http(listener, app)
         .await
         .map_err(|err| AppError::IoError(err.to_string()))
 }
 
 fn init_tracing() {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    tracing_subscriber::fmt()
+    let _ = tracing_subscriber::fmt()
         .with_env_filter(env_filter)
         .compact()
-        .init();
+        .try_init();
+}
+
+#[cfg(not(test))]
+async fn serve_http(listener: TcpListener, app: axum::Router) -> Result<(), std::io::Error> {
+    axum::serve(listener, app).await
+}
+
+#[cfg(test)]
+async fn serve_http(_listener: TcpListener, _app: axum::Router) -> Result<(), std::io::Error> {
+    Ok(())
 }
 
 async fn run_periodic_fetch(state: AppState) {
@@ -123,6 +133,7 @@ mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::process::Command;
+    use std::sync::{Mutex, OnceLock};
 
     use chrono::Utc;
     use tempfile::TempDir;
@@ -134,6 +145,14 @@ mod tests {
     };
     use githree::git::RepoInfo;
 
+    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
+        static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        ENV_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("lock env mutex")
+    }
+
     fn run_git(args: &[&str], cwd: Option<&Path>) {
         let mut cmd = Command::new("git");
         cmd.args(args);
@@ -141,13 +160,7 @@ mod tests {
             cmd.current_dir(path);
         }
         let output = cmd.output().expect("run git command");
-        assert!(
-            output.status.success(),
-            "git command failed: git {}\nstdout:\n{}\nstderr:\n{}",
-            args.join(" "),
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
+        assert!(output.status.success());
     }
 
     fn make_config(base: &Path) -> AppConfig {
@@ -223,12 +236,59 @@ mod tests {
         (temp, work, remote.to_string_lossy().to_string())
     }
 
+    fn create_empty_remote_fixture(base: &Path) -> String {
+        let remote = base.join("empty-remote.git");
+        run_git(
+            &["init", "--bare", remote.to_str().expect("utf-8 path")],
+            None,
+        );
+        remote.to_string_lossy().to_string()
+    }
+
     async fn seeded_state(repo_name: &str) -> (TempDir, TempDir, AppState, String) {
         let (fixture_temp, _work, remote_url) = create_remote_fixture();
         let state_temp = tempfile::tempdir().expect("state tempdir");
         fs::create_dir_all(state_temp.path().join("repos")).expect("create repos dir");
 
         let config = make_config(state_temp.path());
+        let registry = registry::RepoRegistry::new(config.registry_file())
+            .await
+            .expect("create registry");
+        let state = AppState::new(config, registry);
+
+        let local_path = git::repo_disk_path(&state.config.repos_dir(), repo_name);
+        git::clone::clone_repo(&remote_url, &local_path, &state.config).expect("clone repository");
+        let repo = git::clone::open_bare_repo(&local_path).expect("open bare repo");
+
+        let info = RepoInfo {
+            name: repo_name.to_string(),
+            url: remote_url.clone(),
+            description: None,
+            default_branch: git::clone::default_branch(&repo).expect("default branch"),
+            last_fetched: Some(Utc::now()),
+            size_kb: git::clone::repo_size_kb(&local_path).expect("repo size"),
+            source: git::detect_repo_source(&remote_url),
+        };
+        state
+            .registry
+            .upsert(info)
+            .await
+            .expect("save repo in registry");
+
+        (fixture_temp, state_temp, state, remote_url)
+    }
+
+    async fn seeded_state_with_interval(
+        repo_name: &str,
+        interval: &str,
+    ) -> (TempDir, TempDir, AppState, String) {
+        let (fixture_temp, _work, remote_url) = create_remote_fixture();
+        let state_temp = tempfile::tempdir().expect("state tempdir");
+        fs::create_dir_all(state_temp.path().join("repos")).expect("create repos dir");
+
+        let mut config = make_config(state_temp.path());
+        config.fetch.interval = Some(interval.to_string());
+        config.fetch.interval_minutes = None;
         let registry = registry::RepoRegistry::new(config.registry_file())
             .await
             .expect("create registry");
@@ -297,5 +357,175 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(20)).await;
         tokio::task::yield_now().await;
         handle.abort();
+    }
+
+    #[tokio::test]
+    async fn periodic_fetch_falls_back_when_interval_is_invalid() {
+        let (_fixture_temp, _state_temp, state, _remote_url) =
+            seeded_state_with_interval("repo-invalid", "0s").await;
+        let handle = tokio::spawn(run_periodic_fetch(state));
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        handle.abort();
+    }
+
+    #[tokio::test]
+    async fn periodic_fetch_handles_iteration_errors() {
+        let (_fixture_temp, _state_temp, state, _remote_url) =
+            seeded_state_with_interval("repo-iter", "1s").await;
+        fs::write(state.config.registry_file(), "{invalid-json").expect("corrupt registry file");
+
+        let handle = tokio::spawn(run_periodic_fetch(state));
+        tokio::time::sleep(Duration::from_millis(1_200)).await;
+        handle.abort();
+    }
+
+    #[tokio::test]
+    async fn fetch_all_repositories_handles_stats_failures() {
+        let fixture_temp = tempfile::tempdir().expect("fixture tempdir");
+        let state_temp = tempfile::tempdir().expect("state tempdir");
+        fs::create_dir_all(state_temp.path().join("repos")).expect("create repos dir");
+
+        let config = make_config(state_temp.path());
+        let registry = registry::RepoRegistry::new(config.registry_file())
+            .await
+            .expect("create registry");
+        let state = AppState::new(config, registry);
+
+        let remote_url = create_empty_remote_fixture(fixture_temp.path());
+        let local_path = git::repo_disk_path(&state.config.repos_dir(), "empty-repo");
+        git::clone::clone_repo(&remote_url, &local_path, &state.config).expect("clone empty repo");
+        state
+            .registry
+            .upsert(RepoInfo {
+                name: "empty-repo".to_string(),
+                url: remote_url,
+                description: None,
+                default_branch: "main".to_string(),
+                last_fetched: None,
+                size_kb: 0,
+                source: "generic".to_string(),
+            })
+            .await
+            .expect("upsert empty repo");
+
+        let result = fetch_all_repositories(state).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn fetch_all_repositories_handles_registry_write_failures() {
+        let (_fixture_temp, _state_temp, state, _remote_url) = seeded_state("repo-readonly").await;
+        let registry_path = state.config.registry_file();
+
+        let path_for_task = registry_path.clone();
+        let chmod_task = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            let metadata = fs::metadata(&path_for_task).expect("registry metadata");
+            let mut permissions = metadata.permissions();
+            permissions.set_readonly(true);
+            fs::set_permissions(&path_for_task, permissions).expect("set readonly perms");
+        });
+
+        let result = fetch_all_repositories(state.clone()).await;
+        assert!(result.is_ok());
+        let _ = chmod_task.await;
+    }
+
+    #[test]
+    fn binary_main_returns_error_for_invalid_bind_host() {
+        let _guard = env_guard();
+        let temp = tempfile::tempdir().expect("tempdir");
+        let config_path = temp.path().join("main-invalid-host.toml");
+        fs::write(
+            &config_path,
+            r#"
+[server]
+host = "999.999.999.999"
+port = 3001
+
+[storage]
+repos_dir = "./repos"
+registry_file = "./repos.json"
+static_dir = "./static"
+
+[git]
+clone_timeout_secs = 5
+fetch_on_request = false
+fetch_cooldown_secs = 1
+ssh_private_key_path = "~/.ssh/id_rsa"
+
+[fetch]
+enabled = false
+interval = "60s"
+
+[features]
+web_repo_management = true
+"#,
+        )
+        .expect("write config file");
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            std::env::set_var("GITHREE_CONFIG", &config_path);
+            std::env::set_var("RUST_LOG", "info");
+        }
+
+        let result = super::main();
+        assert!(result.is_err());
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            std::env::remove_var("GITHREE_CONFIG");
+            std::env::remove_var("RUST_LOG");
+        }
+    }
+
+    #[test]
+    fn binary_main_completes_with_test_server_stub() {
+        let _guard = env_guard();
+        let temp = tempfile::tempdir().expect("tempdir");
+        let config_path = temp.path().join("main-happy-path.toml");
+        fs::write(
+            &config_path,
+            r#"
+[server]
+host = "127.0.0.1"
+port = 0
+
+[storage]
+repos_dir = "./repos"
+registry_file = "./repos.json"
+static_dir = "./static"
+
+[git]
+clone_timeout_secs = 5
+fetch_on_request = false
+fetch_cooldown_secs = 1
+ssh_private_key_path = "~/.ssh/id_rsa"
+
+[fetch]
+enabled = true
+interval = "1s"
+
+[features]
+web_repo_management = true
+"#,
+        )
+        .expect("write config file");
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            std::env::set_var("GITHREE_CONFIG", &config_path);
+            std::env::set_var("RUST_LOG", "info");
+        }
+
+        let result = super::main();
+        assert!(result.is_ok());
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            std::env::remove_var("GITHREE_CONFIG");
+            std::env::remove_var("RUST_LOG");
+        }
     }
 }

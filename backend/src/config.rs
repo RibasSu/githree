@@ -244,7 +244,19 @@ fn expand_tilde(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::sync::{Mutex, OnceLock};
+    use tempfile::tempdir;
+
     use super::*;
+
+    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
+        static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        ENV_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("lock env mutex")
+    }
 
     #[test]
     fn fetch_interval_parses_seconds_minutes_and_hours() {
@@ -272,5 +284,153 @@ mod tests {
         assert!(parse_sync_interval("0s").is_err());
         assert!(parse_sync_interval("x10m").is_err());
         assert!(parse_sync_interval("10d").is_err());
+    }
+
+    #[test]
+    fn parse_sync_interval_covers_overflow_and_parse_errors() {
+        // This value overflows u64 parsing.
+        assert!(parse_sync_interval("184467440737095516160s").is_err());
+        // This value parses as u64 but overflows conversion to seconds.
+        assert!(parse_sync_interval("3074457345618258603h").is_err());
+    }
+
+    #[test]
+    fn parse_bool_env_accepts_true_false_and_rejects_invalid() {
+        assert!(parse_bool_env("true").expect("parse true"));
+        assert!(parse_bool_env(" YES ").expect("parse yes"));
+        assert!(!parse_bool_env("false").expect("parse false"));
+        assert!(!parse_bool_env("off").expect("parse off"));
+        assert!(parse_bool_env("definitely-not-bool").is_err());
+    }
+
+    #[test]
+    fn sync_interval_supports_minutes_field_and_defaults() {
+        let minutes_cfg = FetchConfig {
+            enabled: true,
+            interval: None,
+            interval_minutes: Some(2),
+        };
+        assert_eq!(
+            minutes_cfg.sync_interval().expect("minutes interval"),
+            Duration::from_secs(120)
+        );
+
+        let default_cfg = FetchConfig {
+            enabled: true,
+            interval: None,
+            interval_minutes: None,
+        };
+        assert_eq!(
+            default_cfg.sync_interval().expect("default interval"),
+            Duration::from_secs(60)
+        );
+
+        let zero_cfg = FetchConfig {
+            enabled: true,
+            interval: None,
+            interval_minutes: Some(0),
+        };
+        assert!(zero_cfg.sync_interval().is_err());
+
+        let overflow_cfg = FetchConfig {
+            enabled: true,
+            interval: None,
+            interval_minutes: Some(u64::MAX),
+        };
+        assert!(overflow_cfg.sync_interval().is_err());
+    }
+
+    #[test]
+    fn app_config_load_honors_env_overrides() {
+        let _guard = env_guard();
+        let temp = tempdir().expect("tempdir");
+        let config_path = temp.path().join("githree.toml");
+        fs::write(
+            &config_path,
+            r#"
+[server]
+host = "127.0.0.1"
+port = 3111
+
+[storage]
+repos_dir = "./repos"
+registry_file = "./repos.json"
+static_dir = "./static"
+
+[git]
+clone_timeout_secs = 10
+fetch_on_request = true
+fetch_cooldown_secs = 1
+ssh_private_key_path = "~/.ssh/id_rsa"
+
+[fetch]
+enabled = true
+interval = "10s"
+interval_minutes = 5
+
+[features]
+web_repo_management = true
+"#,
+        )
+        .expect("write config file");
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            env::set_var("GITHREE_CONFIG", &config_path);
+            env::set_var("GITHREE_WEB_REPO_MANAGEMENT", "off");
+            env::set_var("GITHREE_FETCH_INTERVAL", "2m");
+        }
+
+        let loaded = AppConfig::load().expect("load config");
+        assert!(!loaded.features.web_repo_management);
+        assert_eq!(
+            loaded.fetch.sync_interval().expect("sync interval"),
+            Duration::from_secs(120)
+        );
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            env::remove_var("GITHREE_CONFIG");
+            env::remove_var("GITHREE_WEB_REPO_MANAGEMENT");
+            env::remove_var("GITHREE_FETCH_INTERVAL");
+        }
+    }
+
+    #[test]
+    fn app_config_load_rejects_invalid_boolean_override() {
+        let _guard = env_guard();
+        let temp = tempdir().expect("tempdir");
+        let config_path = temp.path().join("githree.toml");
+        fs::write(
+            &config_path,
+            r#"
+[server]
+host = "127.0.0.1"
+port = 3111
+"#,
+        )
+        .expect("write config file");
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            env::set_var("GITHREE_CONFIG", &config_path);
+            env::set_var("GITHREE_WEB_REPO_MANAGEMENT", "invalid");
+        }
+
+        let err = AppConfig::load().expect_err("invalid bool must fail");
+        assert!(
+            matches!(
+                err,
+                AppError::InvalidRequest(message)
+                    if message.contains("GITHREE_WEB_REPO_MANAGEMENT")
+            ),
+            "unexpected error type from invalid boolean override"
+        );
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            env::remove_var("GITHREE_CONFIG");
+            env::remove_var("GITHREE_WEB_REPO_MANAGEMENT");
+        }
     }
 }

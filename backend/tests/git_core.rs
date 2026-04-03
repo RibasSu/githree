@@ -73,6 +73,12 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
     assert_eq!(raw.file_name, "README.md");
     assert!(!raw.content.is_empty());
 
+    match git::browse::read_raw(&local_path, "main", "docs") {
+        Err(AppError::InvalidRequest(_)) => {}
+        Err(other) => panic!("expected InvalidRequest, got {other:?}"),
+        Ok(_) => panic!("directory raw read should fail"),
+    }
+
     let readme_doc = git::browse::read_readme(&local_path, "main").expect("read README");
     assert_eq!(readme_doc.filename, "README.md");
 
@@ -80,6 +86,11 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
         git::browse::commit_history(&local_path, "main", None, 0, 3).expect("commit history");
     assert_eq!(history.len(), 3);
     assert!(history.iter().all(|commit| !commit.hash.is_empty()));
+
+    let skipped_history = git::browse::commit_history(&local_path, "main", None, 1, 2)
+        .expect("commit history with skip");
+    assert_eq!(skipped_history.len(), 2);
+    assert_ne!(skipped_history[0].hash, history[0].hash);
 
     let filtered =
         git::browse::commit_history(&local_path, "main", Some("docs/renamed-guide.md"), 0, 10)
@@ -90,6 +101,11 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
         git::browse::commit_detail(&local_path, "main~1").expect("commit detail by revparse expr");
     assert_eq!(detail.commit.hash, history[1].hash);
     assert!(!detail.diffs.is_empty());
+
+    let initial_hash = fixture.resolve_ref("main~3");
+    let initial_detail =
+        git::browse::commit_detail(&local_path, &initial_hash).expect("initial commit detail");
+    assert!(initial_detail.parents.is_empty());
 
     let missing_ref = git::browse::commit_history(&local_path, "not-a-ref", None, 0, 1)
         .expect_err("missing ref should error");
@@ -184,6 +200,106 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
     assert!(huge_detail.displayed_file_count > 0);
     assert!(huge_detail.displayed_line_count > 0);
     assert!(huge_detail.displayed_line_count < huge_content.lines().count());
+
+    let huge_binary = vec![0_u8; 6 * 1024 * 1024];
+    fixture.add_remote_commit(
+        "binary/very-large.bin",
+        &huge_binary,
+        "feat: add very large binary fixture",
+    );
+    git::clone::fetch_repo(&local_path, &fixture.remote_url(), &config)
+        .expect("fetch very large binary");
+    let huge_binary_blob = git::browse::read_blob(
+        &local_path,
+        "refs/remotes/origin/main",
+        "binary/very-large.bin",
+    )
+    .expect("read very large binary blob");
+    assert!(huge_binary_blob.is_binary);
+    assert!(huge_binary_blob.is_truncated);
+    assert!(huge_binary_blob.truncated_reason.is_some());
+
+    common::run_git(&["checkout", "main"], Some(&fixture.work_dir));
+    for index in 0..320 {
+        let file_path = fixture
+            .work_dir
+            .join("many-files")
+            .join(format!("file-{index:03}.txt"));
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).expect("create many-files dir");
+        }
+        fs::write(&file_path, format!("line for {index}\n")).expect("write many-files fixture");
+    }
+    common::run_git(&["add", "."], Some(&fixture.work_dir));
+    common::run_git(
+        &["commit", "-m", "feat: add many files for diff truncation"],
+        Some(&fixture.work_dir),
+    );
+    common::run_git(&["push", "origin", "main"], Some(&fixture.work_dir));
+    let many_files_hash = common::git_stdout(&["rev-parse", "HEAD"], Some(&fixture.work_dir))
+        .trim()
+        .to_string();
+    git::clone::fetch_repo(&local_path, &fixture.remote_url(), &config)
+        .expect("fetch many files commit");
+    let many_files_detail = git::browse::commit_detail(&local_path, &many_files_hash)
+        .expect("commit detail for many files commit");
+    assert!(many_files_detail.is_truncated);
+    assert!(many_files_detail.displayed_file_count <= 300);
+    assert!(many_files_detail.truncated_reason.is_some());
+
+    common::run_git(&["checkout", "main"], Some(&fixture.work_dir));
+    let head_hash = common::git_stdout(&["rev-parse", "HEAD"], Some(&fixture.work_dir))
+        .trim()
+        .to_string();
+    common::run_git(
+        &[
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            "160000",
+            &head_hash,
+            "vendor-submodule",
+        ],
+        Some(&fixture.work_dir),
+    );
+    common::run_git(
+        &["commit", "-m", "chore: add gitlink tree entry"],
+        Some(&fixture.work_dir),
+    );
+    common::run_git(&["push", "origin", "main"], Some(&fixture.work_dir));
+    git::clone::fetch_repo(&local_path, &fixture.remote_url(), &config)
+        .expect("fetch gitlink tree entry");
+    let root_after_gitlink = git::browse::list_tree(&local_path, "refs/remotes/origin/main", "")
+        .expect("list root tree after gitlink");
+    assert!(
+        !root_after_gitlink
+            .iter()
+            .any(|entry| entry.name == "vendor-submodule")
+    );
+
+    fixture.add_remote_commit("README.md", b"", "chore: empty readme");
+    git::clone::fetch_repo(&local_path, &fixture.remote_url(), &config)
+        .expect("fetch empty readme");
+    let empty_readme = git::browse::read_blob(&local_path, "refs/remotes/origin/main", "README.md")
+        .expect("read empty readme");
+    assert!(!empty_readme.is_binary);
+    assert_eq!(empty_readme.content, "");
+
+    common::run_git(&["checkout", "main"], Some(&fixture.work_dir));
+    common::run_git(&["rm", "README.md"], Some(&fixture.work_dir));
+    common::run_git(
+        &["commit", "-m", "chore: remove readme for coverage"],
+        Some(&fixture.work_dir),
+    );
+    common::run_git(&["push", "origin", "main"], Some(&fixture.work_dir));
+    git::clone::fetch_repo(&local_path, &fixture.remote_url(), &config)
+        .expect("fetch readme removal");
+    let missing_readme = git::browse::read_readme(&local_path, "refs/remotes/origin/main")
+        .expect_err("missing readme should fail");
+    match missing_readme {
+        AppError::NotFound(_) => {}
+        other => panic!("expected NotFound, got {other:?}"),
+    }
 }
 
 #[test]
@@ -234,6 +350,12 @@ fn archive_generation_supports_tar_gz_and_zip() {
     }
     assert!(found_readme);
 
+    let commit_hash = common::git_stdout(&["rev-parse", "HEAD"], Some(&fixture.work_dir));
+    let hash_archive =
+        git::archive::create_archive(&local_path, "archive-repo", commit_hash.trim(), "zip")
+            .expect("create archive using explicit commit hash");
+    assert!(hash_archive.path.exists());
+
     let bad_format = git::archive::create_archive(&local_path, "archive-repo", "main", "7z")
         .expect_err("unsupported archive format should fail");
     match bad_format {
@@ -247,4 +369,39 @@ fn archive_generation_supports_tar_gz_and_zip() {
         AppError::NotFound(_) => {}
         other => panic!("expected NotFound, got {other:?}"),
     }
+}
+
+#[test]
+fn refs_fallback_to_main_when_origin_head_is_absent() {
+    let temp = tempdir().expect("tempdir");
+    let bare_path = temp.path().join("empty.git");
+    common::run_git(
+        &["init", "--bare", bare_path.to_str().expect("utf-8 path")],
+        None,
+    );
+
+    let refs = git::refs::list_refs(&bare_path).expect("list refs on empty bare repo");
+    assert!(refs.branches.is_empty());
+    assert!(refs.tags.is_empty());
+    assert_eq!(refs.default_branch, "main");
+}
+
+#[test]
+fn refs_use_first_branch_when_origin_head_missing_but_branches_exist() {
+    let fixture = common::RepoFixture::new();
+    let temp = tempdir().expect("tempdir");
+    let bare_path = temp.path().join("bare-no-origin-head.git");
+    common::run_git(
+        &[
+            "clone",
+            "--bare",
+            common::path_to_str(&fixture.work_dir),
+            bare_path.to_str().expect("utf-8 path"),
+        ],
+        None,
+    );
+
+    let refs = git::refs::list_refs(&bare_path).expect("list refs");
+    assert!(!refs.branches.is_empty());
+    assert_eq!(refs.default_branch, refs.branches[0]);
 }

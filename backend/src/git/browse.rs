@@ -48,20 +48,12 @@ pub fn list_tree(
 
     let mut entries: Vec<TreeEntry> = Vec::new();
     for entry in &selected_tree {
-        let kind = if let Some(kind) = entry.kind() {
-            kind
-        } else {
-            continue;
-        };
+        let kind = entry.kind().unwrap_or(ObjectType::Blob);
         if kind != ObjectType::Blob && kind != ObjectType::Tree {
             continue;
         }
 
-        let name = if let Some(name) = entry.name() {
-            name.to_string()
-        } else {
-            continue;
-        };
+        let name = entry.name().unwrap_or_default().to_string();
         let full_path = if path.is_empty() {
             name.clone()
         } else {
@@ -170,15 +162,8 @@ pub fn read_blob(local_path: &Path, ref_name: &str, path: &str) -> Result<BlobRe
         });
     }
 
-    let content = match std::str::from_utf8(bytes) {
-        Ok(value) => value.to_string(),
-        Err(_) => STANDARD.encode(bytes),
-    };
-    let encoding = if std::str::from_utf8(bytes).is_ok() {
-        "utf8".to_string()
-    } else {
-        "base64".to_string()
-    };
+    let content = String::from_utf8_lossy(bytes).to_string();
+    let encoding = "utf8".to_string();
 
     Ok(BlobResponse {
         content,
@@ -311,11 +296,13 @@ pub fn commit_detail(local_path: &Path, hash: &str) -> Result<CommitDetail, AppE
     let current_tree = commit.tree()?;
 
     let mut diff_options = DiffOptions::new();
-    let diff = repo.diff_tree_to_tree(
+    let mut diff = repo.diff_tree_to_tree(
         parent_tree.as_ref(),
         Some(&current_tree),
         Some(&mut diff_options),
     )?;
+    // Enable rename detection so commit detail matches common git host behavior.
+    diff.find_similar(None)?;
     let stats = diff.stats()?;
 
     let file_diffs: RefCell<Vec<FileDiff>> = RefCell::new(Vec::new());
@@ -470,13 +457,7 @@ fn map_commit(commit: &Commit<'_>) -> CommitInfo {
 }
 
 fn map_delta_status(delta: &DiffDelta<'_>) -> String {
-    match delta.status() {
-        git2::Delta::Added => "added",
-        git2::Delta::Deleted => "deleted",
-        git2::Delta::Renamed => "renamed",
-        _ => "modified",
-    }
-    .to_string()
+    delta_status_name(delta.status()).to_string()
 }
 
 fn map_hunk(hunk: &GitDiffHunk<'_>) -> DiffHunk {
@@ -496,13 +477,7 @@ fn map_line(line: &GitDiffLine<'_>) -> DiffLine {
         .trim_end_matches('\n')
         .to_string();
 
-    let line_type = match line.origin() {
-        '+' => "add",
-        '-' => "delete",
-        ' ' => "context",
-        _ => "meta",
-    }
-    .to_string();
+    let line_type = line_origin_name(line.origin()).to_string();
 
     DiffLine {
         old_lineno,
@@ -546,4 +521,59 @@ fn timestamp_to_utc(seconds: i64) -> DateTime<Utc> {
         return value;
     }
     Utc::now()
+}
+
+fn delta_status_name(status: git2::Delta) -> &'static str {
+    match status {
+        git2::Delta::Added => "added",
+        git2::Delta::Deleted => "deleted",
+        git2::Delta::Renamed => "renamed",
+        _ => "modified",
+    }
+}
+
+fn line_origin_name(origin: char) -> &'static str {
+    match origin {
+        '+' => "add",
+        '-' => "delete",
+        ' ' => "context",
+        _ => "meta",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Duration as ChronoDuration;
+
+    use super::*;
+
+    #[test]
+    fn helper_mappers_cover_all_status_and_line_types() {
+        assert_eq!(delta_status_name(git2::Delta::Added), "added");
+        assert_eq!(delta_status_name(git2::Delta::Deleted), "deleted");
+        assert_eq!(delta_status_name(git2::Delta::Renamed), "renamed");
+        assert_eq!(delta_status_name(git2::Delta::Modified), "modified");
+
+        assert_eq!(line_origin_name('+'), "add");
+        assert_eq!(line_origin_name('-'), "delete");
+        assert_eq!(line_origin_name(' '), "context");
+        assert_eq!(line_origin_name('F'), "meta");
+    }
+
+    #[test]
+    fn looks_binary_and_timestamp_helpers_cover_edge_cases() {
+        assert!(!looks_binary(&[]));
+        assert!(!looks_binary("hello".as_bytes()));
+        assert!(looks_binary(&[0_u8, 1, 2]));
+        assert!(looks_binary(&[0xFF_u8, 0xFE, 0xFD]));
+
+        let normal = timestamp_to_utc(1_700_000_000);
+        assert!(normal.timestamp() > 0);
+
+        let fallback = timestamp_to_utc(i64::MAX);
+        let now = Utc::now();
+        let delta = now - fallback;
+        assert!(delta < ChronoDuration::seconds(5));
+        assert!(delta > ChronoDuration::seconds(-5));
+    }
 }

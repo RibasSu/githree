@@ -67,6 +67,30 @@ async fn app_error_into_response_maps_status_and_code() {
     }
 }
 
+#[test]
+fn app_error_from_conversions_cover_io_git_and_json() {
+    let io_error = std::io::Error::other("io conversion");
+    let mapped_io: AppError = io_error.into();
+    match mapped_io {
+        AppError::IoError(message) => assert!(message.contains("io conversion")),
+        other => panic!("expected IoError, got {other:?}"),
+    }
+
+    let mapped_git: AppError = git2::Error::from_str("git conversion").into();
+    match mapped_git {
+        AppError::GitError(message) => assert!(message.contains("git conversion")),
+        other => panic!("expected GitError, got {other:?}"),
+    }
+
+    let bad_json =
+        serde_json::from_str::<serde_json::Value>("{").expect_err("invalid json must fail");
+    let mapped_json: AppError = bad_json.into();
+    match mapped_json {
+        AppError::InvalidRequest(message) => assert!(!message.is_empty()),
+        other => panic!("expected InvalidRequest, got {other:?}"),
+    }
+}
+
 #[tokio::test]
 async fn registry_round_trip_and_not_found_paths() {
     let temp = tempdir().expect("tempdir");
@@ -151,10 +175,28 @@ fn git_utilities_cover_name_source_language_and_path_helpers() {
         other => panic!("expected InvalidRequest, got {other:?}"),
     }
 
+    let empty_name = git::sanitize_name("   ").expect_err("empty name must fail");
+    match empty_name {
+        AppError::InvalidRequest(msg) => assert!(msg.contains("cannot be empty")),
+        other => panic!("expected InvalidRequest, got {other:?}"),
+    }
+
+    let derive_fail = git::derive_repo_name("", None).expect_err("invalid URL should fail");
+    match derive_fail {
+        AppError::InvalidRequest(msg) => {
+            assert!(
+                msg.contains("could not derive repository name") || msg.contains("cannot be empty"),
+                "unexpected derive error message: {msg}"
+            );
+        }
+        other => panic!("expected InvalidRequest, got {other:?}"),
+    }
+
     assert_eq!(git::detect_language("src/main.rs"), "rust");
     assert_eq!(git::detect_language("pkg/index.ts"), "typescript");
     assert_eq!(git::detect_language("docs/README.md"), "markdown");
-    assert_eq!(git::detect_language("Dockerfile"), "text");
+    assert_eq!(git::detect_language("Dockerfile"), "docker");
+    assert_eq!(git::detect_language("deploy/Containerfile"), "docker");
 
     let path = git::repo_disk_path(std::path::Path::new("/tmp/repos"), "demo");
     assert!(path.ends_with("repos/demo"));

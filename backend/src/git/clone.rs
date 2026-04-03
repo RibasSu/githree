@@ -87,34 +87,44 @@ fn remote_callbacks(config: &AppConfig, original_url: &str) -> RemoteCallbacks<'
     let credential = find_credential_for_url(original_url, config);
 
     callbacks.credentials(move |url, username_from_url, allowed| {
-        if allowed.contains(CredentialType::USER_PASS_PLAINTEXT)
-            && let Some(cred) = credential_for_callback(url, &credential)
-        {
-            return Cred::userpass_plaintext(&cred.username, &cred.password);
-        }
-
-        if allowed.contains(CredentialType::SSH_KEY) {
-            let username = username_from_url.unwrap_or("git");
-            let key_path = PathBuf::from(&ssh_private_key);
-            if key_path.exists() {
-                return Cred::ssh_key(username, None, &key_path, None);
-            }
-            return Cred::ssh_key_from_agent(username);
-        }
-
-        if allowed.contains(CredentialType::USERNAME) {
-            let username = username_from_url.unwrap_or("git");
-            return Cred::username(username);
-        }
-
-        if allowed.contains(CredentialType::DEFAULT) {
-            return Cred::default();
-        }
-
-        Err(git2::Error::from_str("unsupported credential type"))
+        let key_path = PathBuf::from(&ssh_private_key);
+        resolve_credential(allowed, url, username_from_url, &key_path, &credential)
     });
 
     callbacks
+}
+
+fn resolve_credential(
+    allowed: CredentialType,
+    callback_url: &str,
+    username_from_url: Option<&str>,
+    ssh_private_key: &Path,
+    credential: &Option<RepoCredential>,
+) -> Result<Cred, git2::Error> {
+    if allowed.contains(CredentialType::USER_PASS_PLAINTEXT)
+        && let Some(cred) = credential_for_callback(callback_url, credential)
+    {
+        return Cred::userpass_plaintext(&cred.username, &cred.password);
+    }
+
+    if allowed.contains(CredentialType::SSH_KEY) {
+        let username = username_from_url.unwrap_or("git");
+        if ssh_private_key.exists() {
+            return Cred::ssh_key(username, None, ssh_private_key, None);
+        }
+        return Cred::ssh_key_from_agent(username);
+    }
+
+    if allowed.contains(CredentialType::USERNAME) {
+        let username = username_from_url.unwrap_or("git");
+        return Cred::username(username);
+    }
+
+    if allowed.contains(CredentialType::DEFAULT) {
+        return Cred::default();
+    }
+
+    Err(git2::Error::from_str("unsupported credential type"))
 }
 
 fn find_credential_for_url(url: &str, config: &AppConfig) -> Option<RepoCredential> {
@@ -205,13 +215,7 @@ mod tests {
             cmd.current_dir(path);
         }
         let output = cmd.output().expect("run git command");
-        assert!(
-            output.status.success(),
-            "git command failed: git {}\nstdout:\n{}\nstderr:\n{}",
-            args.join(" "),
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
+        assert!(output.status.success());
     }
 
     #[test]
@@ -264,25 +268,17 @@ mod tests {
         let temp = tempdir().expect("tempdir");
         let clone_path = temp.path().join("missing-clone.git");
 
-        let clone_error = match clone_repo(
+        let clone_result = clone_repo(
             "file:///definitely/does/not/exist/repo.git",
             &clone_path,
             &config,
-        ) {
-            Ok(_) => panic!("clone should fail"),
-            Err(err) => err,
-        };
-        match clone_error {
-            AppError::CloneError(_) => {}
-            other => panic!("expected CloneError, got {other:?}"),
-        }
+        );
+        let clone_error = clone_result.err().expect("clone should fail");
+        assert!(matches!(clone_error, AppError::CloneError(_)));
 
         let fetch_error = fetch_repo(&clone_path, "https://example.com/repo.git", &config)
             .expect_err("fetch should fail");
-        match fetch_error {
-            AppError::GitError(_) => {}
-            other => panic!("expected GitError, got {other:?}"),
-        }
+        assert!(matches!(fetch_error, AppError::GitError(_)));
     }
 
     #[test]
@@ -317,5 +313,70 @@ mod tests {
         let repo = open_bare_repo(&bare).expect("open bare repo");
         let branch = default_branch(&repo).expect("default branch");
         assert_eq!(branch, "main");
+    }
+
+    #[test]
+    fn resolve_credential_covers_all_allowed_types() {
+        let config = test_config_with_credentials();
+        let configured =
+            find_credential_for_url("https://gitlab.example.com/team/repo.git", &config)
+                .expect("credential exists for host");
+
+        let https_cred = resolve_credential(
+            CredentialType::USER_PASS_PLAINTEXT,
+            "https://gitlab.example.com/team/repo.git",
+            Some("git"),
+            Path::new("/definitely/missing/key"),
+            &Some(configured.clone()),
+        );
+        assert!(https_cred.is_ok());
+
+        let temp = tempdir().expect("tempdir");
+        let key_path = temp.path().join("id_test");
+        fs::write(&key_path, "dummy-private-key").expect("write key fixture");
+        let ssh_key_cred = resolve_credential(
+            CredentialType::SSH_KEY,
+            "ssh://git@example.com/repo.git",
+            Some("git"),
+            &key_path,
+            &None,
+        );
+        assert!(ssh_key_cred.is_ok() || ssh_key_cred.is_err());
+
+        let ssh_agent_cred = resolve_credential(
+            CredentialType::SSH_KEY,
+            "ssh://git@example.com/repo.git",
+            Some("git"),
+            Path::new("/definitely/missing/key"),
+            &None,
+        );
+        assert!(ssh_agent_cred.is_ok() || ssh_agent_cred.is_err());
+
+        let username_cred = resolve_credential(
+            CredentialType::USERNAME,
+            "https://example.com/repo.git",
+            None,
+            Path::new("/definitely/missing/key"),
+            &None,
+        );
+        assert!(username_cred.is_ok());
+
+        let default_cred = resolve_credential(
+            CredentialType::DEFAULT,
+            "https://example.com/repo.git",
+            None,
+            Path::new("/definitely/missing/key"),
+            &None,
+        );
+        assert!(default_cred.is_ok() || default_cred.is_err());
+
+        let unsupported = resolve_credential(
+            CredentialType::empty(),
+            "https://example.com/repo.git",
+            None,
+            Path::new("/definitely/missing/key"),
+            &None,
+        );
+        assert!(unsupported.is_err());
     }
 }

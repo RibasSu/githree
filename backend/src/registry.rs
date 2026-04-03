@@ -124,3 +124,46 @@ fn write_all_sync(path: &Path, repos: &[RepoInfo]) -> Result<(), AppError> {
 fn join_error(err: tokio::task::JoinError) -> AppError {
     AppError::IoError(format!("blocking task join error: {err}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn new_handles_existing_file_and_empty_content() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let registry_path = temp.path().join("repos.json");
+        fs::write(&registry_path, "").expect("write empty registry file");
+
+        let registry = RepoRegistry::new(registry_path)
+            .await
+            .expect("create registry with existing file");
+        let entries = registry.list().await.expect("list entries from empty file");
+        assert!(entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn new_with_invalid_empty_path_fails() {
+        let err = RepoRegistry::new(PathBuf::new())
+            .await
+            .expect_err("empty path should fail");
+        match err {
+            AppError::IoError(_) => {}
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn join_error_maps_to_io_error() {
+        let panic_join_error = tokio::spawn(async { panic!("registry join panic") })
+            .await
+            .expect_err("must return join error");
+        match super::join_error(panic_join_error) {
+            AppError::IoError(message) => assert!(message.contains("blocking task join error")),
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}
