@@ -6,7 +6,7 @@
   import { highlightMarkdownCodeBlocks } from '$lib/markdown';
   import { formatDateTime } from '$lib/time';
   import type { CommitInfo, ReadmeResponse, RefsResponse, RepoInfo, TreeEntry } from '$lib/types';
-  import { BookOpen, ChevronDown, Code2, Copy, Github, Gitlab, GitBranch, Scale, Search, Shield, Tag, Users } from 'lucide-svelte';
+  import { BookOpen, ChevronDown, Code2, Copy, FileText, Folder, Github, Gitlab, GitBranch, Scale, Search, Shield, Tag, Users } from 'lucide-svelte';
   import DOMPurify from 'dompurify';
   import { marked } from 'marked';
   import { onMount } from 'svelte';
@@ -21,6 +21,11 @@
     data: PageData;
   }
 
+  interface FileSearchEntry {
+    path: string;
+    entryType: 'blob' | 'tree';
+  }
+
   let { data }: Props = $props();
   let repo = $state<RepoInfo | null>(null);
   let refs = $state<RefsResponse | null>(null);
@@ -30,6 +35,11 @@
   let recentCommits = $state<CommitInfo[]>([]);
   let selectedRef = $state('');
   let goToFilePath = $state('');
+  let goToFileFocused = $state(false);
+  let fileSearchEntries = $state<FileSearchEntry[]>([]);
+  let fileSearchLoading = $state(false);
+  let fileSearchActiveIndex = $state(0);
+  let fileSearchBuildToken = 0;
   let codeMenuOpen = $state(false);
   let cloneTab = $state<'https' | 'ssh' | 'cli'>('https');
   let loading = $state(true);
@@ -39,14 +49,15 @@
   });
 
   $effect(() => {
-    if (selectedRef.length === 0) return;
-    void loadForRef();
-  });
-
-  $effect(() => {
     if (!isGithubRepo && cloneTab === 'cli') {
       cloneTab = 'https';
     }
+  });
+
+  $effect(() => {
+    goToFilePath;
+    selectedRef;
+    fileSearchActiveIndex = 0;
   });
 
   async function bootstrap() {
@@ -54,9 +65,16 @@
     try {
       const all = await api.listRepos();
       repo = all.find((item) => item.name === data.repo) ?? null;
-      refs = await api.getRefs(data.repo);
+      if (repo === null) {
+        refs = null;
+        tree = [];
+        readme = null;
+        readmeHtml = '';
+        recentCommits = [];
+        return;
+      }
       if (selectedRef.length === 0) {
-        selectedRef = data.refName || refs.default_branch || repo?.default_branch || 'main';
+        selectedRef = data.refName || repo?.default_branch || 'main';
       }
       await loadForRef();
     } finally {
@@ -66,16 +84,40 @@
 
   async function loadForRef() {
     if (selectedRef.length === 0) return;
+    const requestedRef = selectedRef;
     try {
+      const nextRefs = await api.getRefs(data.repo);
+      refs = nextRefs;
+
+      let effectiveRef = requestedRef;
+      const hasEffectiveRef =
+        nextRefs.branches.includes(effectiveRef) || nextRefs.tags.includes(effectiveRef);
+      if (!hasEffectiveRef) {
+        effectiveRef =
+          nextRefs.default_branch || nextRefs.branches[0] || nextRefs.tags[0] || requestedRef;
+      }
+
+      if (effectiveRef !== selectedRef) {
+        selectedRef = effectiveRef;
+        await goto(`/${data.repo}?ref=${encodeURIComponent(effectiveRef)}`, {
+          replaceState: true,
+          noScroll: true
+        });
+      }
+
       const [nextTree, nextReadme, commits] = await Promise.all([
-        api.getTree(data.repo, selectedRef, ''),
-        api.getReadme(data.repo, selectedRef).catch(() => null),
-        api.getCommits(data.repo, selectedRef, { limit: 30 })
+        api.getTree(data.repo, effectiveRef, ''),
+        api.getReadme(data.repo, effectiveRef).catch(() => null),
+        api.getCommits(data.repo, effectiveRef, { limit: 30 })
       ]);
+      if (selectedRef !== effectiveRef) return;
       tree = nextTree;
       readme = nextReadme;
       recentCommits = commits;
+      fileSearchEntries = [];
+      fileSearchActiveIndex = 0;
       await renderReadme();
+      void buildFileSearchIndex(effectiveRef);
     } catch {
       // toast already emitted
     }
@@ -93,8 +135,12 @@
   }
 
   async function changeRef(value: string) {
+    if (value === selectedRef) return;
     selectedRef = value;
+    goToFilePath = '';
+    goToFileFocused = false;
     await goto(`/${data.repo}?ref=${encodeURIComponent(value)}`, { replaceState: true, noScroll: true });
+    await loadForRef();
   }
 
   function sshCloneCommand(url: string): string {
@@ -139,10 +185,100 @@
   async function submitGoToFile(event: SubmitEvent) {
     event.preventDefault();
     const candidate = goToFilePath.trim().replace(/^\/+/, '');
-    if (candidate.length === 0) return;
+    const exact = fileSearchEntries.find(
+      (entry) => entry.path.toLowerCase() === candidate.toLowerCase()
+    );
+    const fallback = fileSearchResults[fileSearchActiveIndex] || fileSearchResults[0];
+    const target = exact || fallback;
+    if (!target) return;
 
-    await goto(`/${data.repo}/blob/${encodeRepoPath(candidate)}?ref=${encodeURIComponent(selectedRef)}`);
+    await navigateToSearchEntry(target);
+  }
+
+  async function handleGoToFileKeydown(event: KeyboardEvent) {
+    if (!showFileSearchDropdown) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      fileSearchActiveIndex = Math.min(fileSearchActiveIndex + 1, fileSearchResults.length - 1);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      fileSearchActiveIndex = Math.max(fileSearchActiveIndex - 1, 0);
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      goToFileFocused = false;
+    }
+  }
+
+  async function navigateToSearchEntry(entry: FileSearchEntry) {
+    const targetMode = entry.entryType === 'tree' ? 'tree' : 'blob';
+    await goto(
+      `/${data.repo}/${targetMode}/${encodeRepoPath(entry.path)}?ref=${encodeURIComponent(selectedRef)}`
+    );
     goToFilePath = '';
+    goToFileFocused = false;
+  }
+
+  async function buildFileSearchIndex(refName: string) {
+    const buildToken = ++fileSearchBuildToken;
+    fileSearchLoading = true;
+    fileSearchEntries = [];
+    fileSearchActiveIndex = 0;
+    try {
+      const queue: string[] = [''];
+      const visited = new Set<string>();
+      const nextEntries: FileSearchEntry[] = [];
+      const MAX_ENTRIES = 6000;
+      const MAX_DIRECTORIES = 1200;
+      let traversedDirectories = 0;
+
+      while (
+        queue.length > 0 &&
+        nextEntries.length < MAX_ENTRIES &&
+        traversedDirectories < MAX_DIRECTORIES
+      ) {
+        const currentPath = queue.shift() ?? '';
+        if (visited.has(currentPath)) continue;
+        visited.add(currentPath);
+        traversedDirectories += 1;
+
+        const entries = await api.getTree(data.repo, refName, currentPath);
+        if (buildToken !== fileSearchBuildToken) return;
+
+        for (const entry of entries) {
+          nextEntries.push({
+            path: entry.path,
+            entryType: entry.entry_type === 'tree' ? 'tree' : 'blob'
+          });
+
+          if (entry.entry_type === 'tree' && queue.length < MAX_ENTRIES) {
+            queue.push(entry.path);
+          }
+        }
+      }
+
+      if (buildToken !== fileSearchBuildToken) return;
+
+      nextEntries.sort((left, right) => left.path.localeCompare(right.path));
+      fileSearchEntries = nextEntries;
+    } catch {
+      // toast already emitted by API client
+    } finally {
+      if (buildToken === fileSearchBuildToken) {
+        fileSearchLoading = false;
+      }
+    }
+  }
+
+  function scoreSearchEntry(entry: FileSearchEntry, query: string): number {
+    const target = entry.path.toLowerCase();
+    if (target === query) return 0;
+    if (target.startsWith(query)) return 1;
+    if (target.includes(`/${query}`)) return 2;
+    return 3;
   }
 
   const archiveTarUrl = $derived(api.archiveUrl(data.repo, selectedRef || 'main', 'tar.gz'));
@@ -178,6 +314,24 @@
         entry.name.toLowerCase()
       )
     )
+  );
+  const normalizedFileSearchQuery = $derived(goToFilePath.trim().toLowerCase());
+  const fileSearchResults = $derived.by(() => {
+    const query = normalizedFileSearchQuery;
+    if (query.length === 0) return [] as FileSearchEntry[];
+
+    const filtered = fileSearchEntries
+      .filter((entry) => entry.path.toLowerCase().includes(query))
+      .sort((left, right) => {
+        const leftScore = scoreSearchEntry(left, query);
+        const rightScore = scoreSearchEntry(right, query);
+        if (leftScore !== rightScore) return leftScore - rightScore;
+        return left.path.localeCompare(right.path);
+      });
+    return filtered.slice(0, 50);
+  });
+  const showFileSearchDropdown = $derived(
+    goToFileFocused && (fileSearchLoading || fileSearchResults.length > 0 || normalizedFileSearchQuery.length > 0)
   );
 
   function rewriteReadmeLinks(
@@ -337,19 +491,73 @@
               <BranchSelector compact onSelect={changeRef} refs={refs} selected={selectedRef} />
               <span class="gh-toolbar-stat">
                 <GitBranch size={14} />
-                {(refs?.branches.length ?? 0).toLocaleString()} Branches
+                {#if (refs?.branches.length ?? 0) === 1}
+                  1 Branch
+                {:else}
+                  {(refs?.branches.length ?? 0).toLocaleString()} Branches
+                {/if}
               </span>
               <span class="gh-toolbar-stat">
                 <Tag size={14} />
-                {(refs?.tags.length ?? 0).toLocaleString()} Tags
+                {#if (refs?.tags.length ?? 0) === 1}
+                  1 Tag
+                {:else}
+                  {(refs?.tags.length ?? 0).toLocaleString()} Tags
+                {/if}
               </span>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-              <form class="gh-go-to-file" onsubmit={submitGoToFile}>
-                <Search class="gh-muted" size={15} />
-                <input bind:value={goToFilePath} placeholder="Go to file" type="text" />
-              </form>
+              <div class="relative">
+                <form class="gh-go-to-file" onsubmit={submitGoToFile}>
+                  <Search class="gh-muted" size={15} />
+                  <input
+                    bind:value={goToFilePath}
+                    autocomplete="off"
+                    onblur={() => {
+                      setTimeout(() => {
+                        goToFileFocused = false;
+                      }, 80);
+                    }}
+                    onfocus={() => {
+                      goToFileFocused = true;
+                    }}
+                    onkeydown={handleGoToFileKeydown}
+                    placeholder="Go to file"
+                    spellcheck="false"
+                    type="text"
+                  />
+                </form>
+
+                {#if showFileSearchDropdown}
+                  <div class="gh-go-to-file-menu">
+                    {#if fileSearchLoading && fileSearchResults.length === 0}
+                      <div class="gh-go-to-file-empty">Indexing repository files...</div>
+                    {:else if fileSearchResults.length === 0}
+                      <div class="gh-go-to-file-empty">No matching files or folders.</div>
+                    {:else}
+                      <ul class="gh-go-to-file-items">
+                        {#each fileSearchResults as result, index (result.path)}
+                          <li>
+                            <button
+                              class={`gh-go-to-file-item ${index === fileSearchActiveIndex ? 'active' : ''}`}
+                              onclick={() => navigateToSearchEntry(result)}
+                              type="button"
+                            >
+                              {#if result.entryType === 'tree'}
+                                <Folder aria-hidden="true" class="gh-muted" size={14} />
+                              {:else}
+                                <FileText aria-hidden="true" class="gh-muted" size={14} />
+                              {/if}
+                              <span class="truncate">{result.path}</span>
+                            </button>
+                          </li>
+                        {/each}
+                      </ul>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
 
               <div class="relative">
                 <button

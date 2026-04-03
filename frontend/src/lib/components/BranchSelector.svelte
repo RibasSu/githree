@@ -32,6 +32,7 @@
   );
 
   const hasAnyRefs = $derived(branches.length > 0 || tags.length > 0);
+  const showViewAllBranches = $derived(activeTab === 'branches' && branches.length > 0);
 
   $effect(() => {
     if (refs?.tags.includes(selected) && !refs?.branches.includes(selected)) {
@@ -87,6 +88,14 @@
       closeMenu();
     }
   }
+
+  function handleSearchKeydown(event: KeyboardEvent) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const candidate = activeTab === 'branches' ? filteredBranches[0] : filteredTags[0];
+    if (!candidate) return;
+    selectRef(candidate);
+  }
 </script>
 
 <div bind:this={rootEl} class={`gh-ref-switcher ${compact ? 'compact' : ''}`}>
@@ -127,7 +136,8 @@
         <input
           bind:value={search}
           id="gh-ref-search-input"
-          placeholder="Find a branch or tag..."
+          onkeydown={handleSearchKeydown}
+          placeholder="Find a branch..."
           type="text"
         />
       </label>
@@ -211,6 +221,12 @@
           {/if}
         {/if}
       </ul>
+
+      {#if showViewAllBranches}
+        <div class="gh-ref-footer">
+          <span>View all branches</span>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
