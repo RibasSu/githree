@@ -1,0 +1,32 @@
+{
+  "name": "githree-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "lint": "echo \"No lint configuration yet\""
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "^3.0.8",
+    "@sveltejs/kit": "^2.15.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "svelte": "^5.19.0",
+    "svelte-check": "^4.1.6",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3",
+    "vite": "^6.0.11"
+  },
+  "dependencies": {
+    "@skeletonlabs/skeleton": "^2.11.0",
+    "dompurify": "^3.2.5",
+    "lucide-svelte": "^0.508.0",
+    "marked": "^15.0.8",
+    "shiki": "^3.3.0"
+  }
+}

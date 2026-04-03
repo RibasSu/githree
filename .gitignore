@@ -1,0 +1,49 @@
+# ----- OS / editor files -----
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ----- Local tooling -----
+.codex
+.codex/
+
+# ----- Environment / secrets -----
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# ----- Rust -----
+/target/
+/backend/target/
+**/*.rs.bk
+
+# ----- Frontend (SvelteKit / Vite / Node) -----
+/frontend/node_modules/
+/frontend/.svelte-kit/
+/frontend/.vite/
+/frontend/build/
+/frontend/dist/
+/frontend/coverage/
+/frontend/.eslintcache
+/frontend/*.tsbuildinfo
+
+# ----- Package manager logs -----
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ----- Runtime data -----
+/data/*
+!/data/.gitkeep
+!/data/.gitignore
+
+# ----- Generic logs / temp -----
+*.log
+tmp/
+temp/
