@@ -13,6 +13,22 @@ pub fn list_refs(local_path: &Path) -> Result<RefsResponse, AppError> {
         .filter_map(|entry| entry.ok())
         .filter_map(|(branch, _)| branch.name().ok().flatten().map(|value| value.to_string()))
         .collect();
+
+    let mut remote_branches: Vec<String> = repo
+        .branches(Some(git2::BranchType::Remote))?
+        .filter_map(|entry| entry.ok())
+        .filter_map(|(branch, _)| branch.name().ok().flatten().map(|value| value.to_string()))
+        .filter_map(|value| {
+            if value == "origin/HEAD" {
+                return None;
+            }
+            value
+                .strip_prefix("origin/")
+                .map(|branch| branch.to_string())
+        })
+        .collect();
+    branches.append(&mut remote_branches);
+
     branches.sort();
     branches.dedup();
 

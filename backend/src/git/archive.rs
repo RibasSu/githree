@@ -133,10 +133,10 @@ fn collect_files(
 
 fn resolve_commit<'a>(repo: &'a Repository, ref_name: &str) -> Result<git2::Commit<'a>, AppError> {
     let candidate_refs = [
-        ref_name.to_string(),
+        // Prefer remote-tracking refs so archives follow the latest fetched remote state.
+        format!("refs/remotes/origin/{ref_name}"),
         format!("refs/heads/{ref_name}"),
         format!("refs/tags/{ref_name}"),
-        format!("refs/remotes/origin/{ref_name}"),
     ];
 
     for candidate in candidate_refs {
@@ -145,6 +145,13 @@ fn resolve_commit<'a>(repo: &'a Repository, ref_name: &str) -> Result<git2::Comm
         {
             return Ok(commit);
         }
+    }
+
+    // Fallback for explicit OIDs / revspec expressions.
+    if let Ok(object) = repo.revparse_single(ref_name)
+        && let Ok(commit) = object.peel_to_commit()
+    {
+        return Ok(commit);
     }
 
     Err(AppError::NotFound(format!("ref '{ref_name}' not found")))
