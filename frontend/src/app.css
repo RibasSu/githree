@@ -104,33 +104,199 @@ a {
   margin-inline: auto;
 }
 
-.gh-ref-select {
+.gh-ref-switcher {
+  position: relative;
+  display: inline-flex;
+  min-width: 160px;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gh-ref-switcher.compact {
+  min-width: 0;
+  gap: 0;
+}
+
+.gh-ref-switcher-label {
+  font-size: 0.75rem;
+  color: var(--gh-fg-muted);
+}
+
+.gh-ref-switcher-trigger {
   display: inline-flex;
   min-height: 32px;
-  min-width: 140px;
+  min-width: 132px;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: flex-start;
+  gap: 0.45rem;
   border: 1px solid var(--gh-border);
   border-radius: 6px;
   background: #212830;
   color: #f0f6fc;
-  padding: 0 0.6rem;
+  padding: 0 0.62rem;
+  font-size: 0.95rem;
 }
 
-.gh-ref-select-control {
-  appearance: none;
+.gh-ref-switcher-trigger:hover {
+  background: color-mix(in srgb, #212830 84%, #ffffff 16%);
+}
+
+.gh-ref-switcher-trigger:focus-visible {
+  outline: none;
+  border-color: var(--gh-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 24%, transparent 76%);
+}
+
+.gh-ref-chevron {
+  margin-left: auto;
+  transition: transform 0.15s ease-out;
+}
+
+.gh-ref-chevron.open {
+  transform: rotate(180deg);
+}
+
+.gh-ref-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 70;
+  width: min(94vw, 330px);
+  border: 1px solid var(--gh-border);
+  border-radius: 12px;
+  background: #0d1117;
+  box-shadow: 0 16px 36px rgba(1, 4, 9, 0.56);
+  overflow: hidden;
+}
+
+.gh-ref-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--gh-border);
+  padding: 0.72rem 0.85rem;
+  font-size: 0.92rem;
+  color: #f0f6fc;
+}
+
+.gh-ref-close {
+  border: none;
+  background: transparent;
+  color: var(--gh-fg-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.gh-ref-close:hover {
+  color: #f0f6fc;
+  background: color-mix(in srgb, var(--gh-border-muted) 90%, #ffffff 10%);
+}
+
+.gh-ref-search {
+  margin: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--gh-accent);
+  border-radius: 8px;
+  padding: 0 0.62rem;
+  background: #0d1117;
+}
+
+.gh-ref-search input {
+  width: 100%;
+  min-height: 32px;
   border: none;
   outline: none;
   background: transparent;
-  color: inherit;
-  font-size: 0.9rem;
-  min-height: 30px;
-  padding-right: 0.2rem;
+  color: #f0f6fc;
+  font-size: 0.92rem;
 }
 
-.gh-ref-select-control option,
-.gh-ref-select-control optgroup {
-  color: #0d1117;
+.gh-ref-search input::placeholder {
+  color: var(--gh-fg-muted);
+}
+
+.gh-ref-tabs {
+  display: flex;
+  border-top: 1px solid var(--gh-border);
+  border-bottom: 1px solid var(--gh-border);
+}
+
+.gh-ref-tab {
+  flex: 1;
+  border: none;
+  background: #0d1117;
+  color: var(--gh-fg-muted);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.gh-ref-tab:hover {
+  color: #f0f6fc;
+}
+
+.gh-ref-tab.active {
+  color: #f0f6fc;
+  box-shadow: inset 0 -2px 0 #f78166;
+}
+
+.gh-ref-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.gh-ref-empty {
+  padding: 0.75rem 0.85rem;
+  color: var(--gh-fg-muted);
+  font-size: 0.85rem;
+}
+
+.gh-ref-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  border-bottom: 1px solid var(--gh-border-muted);
+  background: transparent;
+  color: #f0f6fc;
+  padding: 0.58rem 0.85rem;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.gh-ref-item:hover {
+  background: #161b22;
+}
+
+.gh-ref-item.active {
+  background: color-mix(in srgb, var(--gh-accent) 18%, transparent 82%);
+}
+
+.gh-ref-check {
+  display: inline-flex;
+  width: 16px;
+  align-items: center;
+  justify-content: center;
+  color: #f0f6fc;
+}
+
+.gh-ref-default {
+  margin-left: auto;
+  border: 1px solid var(--gh-border);
+  border-radius: 999px;
+  padding: 0.05rem 0.42rem;
+  font-size: 0.75rem;
+  color: var(--gh-fg-muted);
 }
 
 .gh-go-to-file {
@@ -421,5 +587,8 @@ a {
     color-mix(in srgb, var(--gh-canvas-subtle) 88%, black 12%) 80%
   );
   background-size: 220% 100%;
-  animation: gh-shimmer 1.35s linear infinite;
+  animation: gh-shimmer 1.2s linear infinite !important;
+  animation-play-state: running !important;
+  will-change: background-position;
+  transform: translateZ(0);
 }

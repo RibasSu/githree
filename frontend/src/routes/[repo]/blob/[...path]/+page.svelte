@@ -26,6 +26,8 @@
   let selectedRef = $state('');
   let loading = $state(true);
   let loadError = $state('');
+  let activeBlobLoads = 0;
+  let latestBlobRequestId = 0;
 
   const rawUrl = $derived(api.rawUrl(data.repo, selectedRef || 'main', data.path));
 
@@ -41,23 +43,30 @@
   async function bootstrap() {
     loading = true;
     loadError = '';
+    let queuedBlobLoad = false;
     try {
       refs = await api.getRefs(data.repo);
       if (selectedRef.length === 0) {
         selectedRef = data.refName || refs.default_branch || 'main';
+        queuedBlobLoad = true;
       }
-      await loadBlob();
+      if (!queuedBlobLoad) {
+        await loadBlob();
+      }
     } catch (err) {
       loadError = extractErrorMessage(err, 'Failed to load file metadata.');
       blob = null;
       latestCommit = null;
     } finally {
-      loading = false;
+      if (!queuedBlobLoad) {
+        loading = false;
+      }
     }
   }
 
   async function loadBlob() {
-    loading = true;
+    const requestId = ++latestBlobRequestId;
+    beginBlobLoad();
     loadError = '';
     try {
       const [nextBlob, commits] = await Promise.all([
@@ -67,14 +76,16 @@
           limit: 1
         }).catch(() => [])
       ]);
+      if (requestId !== latestBlobRequestId) return;
       blob = nextBlob;
       latestCommit = commits[0] ?? null;
     } catch (err) {
+      if (requestId !== latestBlobRequestId) return;
       blob = null;
       latestCommit = null;
       loadError = extractErrorMessage(err, 'File not found for the selected ref.');
     } finally {
-      loading = false;
+      endBlobLoad();
     }
   }
 
@@ -91,6 +102,16 @@
       return value.message;
     }
     return fallback;
+  }
+
+  function beginBlobLoad() {
+    activeBlobLoads += 1;
+    loading = true;
+  }
+
+  function endBlobLoad() {
+    activeBlobLoads = Math.max(0, activeBlobLoads - 1);
+    loading = activeBlobLoads > 0;
   }
 </script>
 
