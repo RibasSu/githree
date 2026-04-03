@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  githree:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - githree_data:/app/data
+      - ./config:/app/config:ro
+    environment:
+      - RUST_LOG=info
+
+volumes:
+  githree_data:

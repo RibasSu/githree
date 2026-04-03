@@ -1,0 +1,26 @@
+[server]
+host = "0.0.0.0"
+port = 3001
+
+[storage]
+repos_dir = "./data/repos"
+registry_file = "./data/repos.json"
+static_dir = "./static"
+
+[git]
+clone_timeout_secs = 120
+fetch_on_request = true
+ssh_private_key_path = "~/.ssh/id_rsa"
+
+[fetch]
+enabled = false
+interval_minutes = 30
+
+[repos]
+credentials = []
+
+# Example private HTTPS credentials:
+# [[repos.credentials]]
+# host = "gitlab.mycompany.com"
+# username = "gitlab-ci"
+# password = "token"
