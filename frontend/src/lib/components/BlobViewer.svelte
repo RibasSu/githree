@@ -23,6 +23,7 @@
   let plainContent = $state('');
   let renderError = $state<string | null>(null);
   let renderMode = $state<RenderMode>('code');
+  let latestRenderJob = 0;
 
   const lineCount = $derived(
     plainContent.length > 0 ? plainContent.split('\n').length : 0
@@ -39,10 +40,11 @@
       truncatedReason: blob.truncated_reason || '',
       filePath
     };
-    void renderBlob(snapshot);
+    const renderJob = ++latestRenderJob;
+    void renderBlob(snapshot, renderJob);
   });
 
-  async function renderBlob(snapshot: {
+  interface BlobSnapshot {
     content: string;
     encoding: string;
     size: number;
@@ -51,63 +53,94 @@
     isTruncated: boolean;
     truncatedReason: string;
     filePath: string;
-  }) {
-    renderError = null;
-    highlightedHtml = '';
-    markdownHtml = '';
-    plainContent = '';
+  }
+
+  interface RenderPayload {
+    renderMode: RenderMode;
+    renderError: string | null;
+    highlightedHtml: string;
+    markdownHtml: string;
+    plainContent: string;
+  }
+
+  async function renderBlob(snapshot: BlobSnapshot, renderJob: number) {
+    const next: RenderPayload = {
+      renderMode: 'code',
+      renderError: null,
+      highlightedHtml: '',
+      markdownHtml: '',
+      plainContent: ''
+    };
 
     if (snapshot.isTruncated) {
-      renderMode = 'truncated';
-      renderError = snapshot.truncatedReason || 'File is too large to render in the browser.';
+      next.renderMode = 'truncated';
+      next.renderError = snapshot.truncatedReason || 'File is too large to render in the browser.';
+      applyRenderPayload(next, renderJob);
       return;
     }
 
     if (snapshot.isBinary) {
-      renderMode = 'binary';
+      next.renderMode = 'binary';
+      applyRenderPayload(next, renderJob);
       return;
     }
 
-    plainContent = decodeText(snapshot.content, snapshot.encoding);
+    const decodedContent = decodeText(snapshot.content, snapshot.encoding);
+    next.plainContent = decodedContent;
 
-    if (plainContent.split('\n').length > MAX_RENDERABLE_LINES) {
-      renderMode = 'truncated';
-      renderError = `File has more than ${MAX_RENDERABLE_LINES} lines. Download the raw file to inspect it.`;
+    if (decodedContent.split('\n').length > MAX_RENDERABLE_LINES) {
+      next.renderMode = 'truncated';
+      next.renderError = `File has more than ${MAX_RENDERABLE_LINES} lines. Download the raw file to inspect it.`;
+      applyRenderPayload(next, renderJob);
       return;
     }
 
     if (isMarkdownFile(snapshot.filePath, snapshot.language)) {
-      renderMode = 'markdown';
+      next.renderMode = 'markdown';
       try {
-        const rendered = await marked.parse(plainContent);
+        const rendered = await marked.parse(decodedContent);
+        if (renderJob !== latestRenderJob) return;
         const rewritten = rewriteMarkdownLinks(rendered);
         const highlighted = await highlightMarkdownCodeBlocks(rewritten);
+        if (renderJob !== latestRenderJob) return;
         const sanitized = DOMPurify.sanitize(highlighted);
-        markdownHtml = sanitized.trim().length > 0
+        next.markdownHtml = sanitized.trim().length > 0
           ? sanitized
-          : `<pre>${escapeHtml(plainContent)}</pre>`;
-        if (sanitized.trim().length === 0 && plainContent.trim().length > 0) {
-          renderError = 'Markdown renderer returned empty output; showing plain text fallback.';
+          : `<pre>${escapeHtml(decodedContent)}</pre>`;
+        if (sanitized.trim().length === 0 && decodedContent.trim().length > 0) {
+          next.renderError = 'Markdown renderer returned empty output; showing plain text fallback.';
         }
       } catch {
-        renderError = 'Falling back to plain text because markdown rendering failed.';
-        markdownHtml = `<pre>${escapeHtml(plainContent)}</pre>`;
+        next.renderError = 'Falling back to plain text because markdown rendering failed.';
+        next.markdownHtml = `<pre>${escapeHtml(decodedContent)}</pre>`;
       }
+      applyRenderPayload(next, renderJob);
       return;
     }
 
-    renderMode = 'code';
+    next.renderMode = 'code';
     try {
-      const html = await codeToHtml(plainContent, {
+      const html = await codeToHtml(decodedContent, {
         lang: snapshot.language || 'text',
         theme: 'github-dark'
       });
+      if (renderJob !== latestRenderJob) return;
 
-      highlightedHtml = html.trim().length > 0 ? html : `<pre>${escapeHtml(plainContent)}</pre>`;
+      next.highlightedHtml = html.trim().length > 0 ? html : `<pre>${escapeHtml(decodedContent)}</pre>`;
     } catch {
-      renderError = 'Falling back to plain text because syntax highlighting failed.';
-      highlightedHtml = `<pre>${escapeHtml(plainContent)}</pre>`;
+      next.renderError = 'Falling back to plain text because syntax highlighting failed.';
+      next.highlightedHtml = `<pre>${escapeHtml(decodedContent)}</pre>`;
     }
+    applyRenderPayload(next, renderJob);
+  }
+
+  function applyRenderPayload(next: RenderPayload, renderJob: number) {
+    if (renderJob !== latestRenderJob) return;
+    renderMode = next.renderMode;
+    renderError = next.renderError;
+    highlightedHtml = next.highlightedHtml;
+    markdownHtml = next.markdownHtml;
+    plainContent = next.plainContent;
   }
 
   function decodeText(content: string, encoding: string): string {
