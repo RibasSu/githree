@@ -159,7 +159,9 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
-    use crate::config::{FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig};
+    use crate::config::{
+        FeaturesConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
+    };
 
     fn test_config_with_credentials() -> AppConfig {
         AppConfig {
@@ -188,6 +190,9 @@ mod tests {
                     username: "bot".to_string(),
                     password: "token".to_string(),
                 }],
+            },
+            features: FeaturesConfig {
+                web_repo_management: true,
             },
         }
     }

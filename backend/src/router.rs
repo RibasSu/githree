@@ -11,6 +11,7 @@ pub fn build_router(state: AppState) -> Router {
     let index_file = static_dir.join("index.html");
 
     let api_router = Router::new()
+        .route("/settings", get(handlers::repos::get_settings))
         .route(
             "/repos",
             post(handlers::repos::add_repo).get(handlers::repos::list_repos),

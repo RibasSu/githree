@@ -5,11 +5,13 @@
 
   interface Props {
     repo: RepoInfo;
-    onFetch: (name: string) => Promise<void> | void;
-    onRemove: (name: string) => Promise<void> | void;
+    onFetch?: (name: string) => Promise<void> | void;
+    onRemove?: (name: string) => Promise<void> | void;
+    onCopyRemoveCommand?: (name: string) => Promise<void> | void;
+    webRepoManagement: boolean;
   }
 
-  let { repo, onFetch, onRemove }: Props = $props();
+  let { repo, onFetch, onRemove, onCopyRemoveCommand, webRepoManagement }: Props = $props();
   const source = $derived(repo.source || 'generic');
 
   function sourceLabel(): string {
@@ -59,18 +61,35 @@
     <a class="btn btn-primary" href={`/${repo.name}`}>
       Browse
     </a>
-    <button aria-label={`Fetch ${repo.name}`} class="btn" onclick={() => onFetch(repo.name)} type="button">
-      <RefreshCcw size={14} />
-      Fetch
-    </button>
-    <button
-      aria-label={`Remove ${repo.name}`}
-      class="btn btn-danger"
-      onclick={() => onRemove(repo.name)}
-      type="button"
-    >
-      <Trash2 size={14} />
-      Remove
-    </button>
+    {#if webRepoManagement}
+      <button
+        aria-label={`Fetch ${repo.name}`}
+        class="btn"
+        onclick={() => onFetch?.(repo.name)}
+        type="button"
+      >
+        <RefreshCcw size={14} />
+        Fetch
+      </button>
+      <button
+        aria-label={`Remove ${repo.name}`}
+        class="btn btn-danger"
+        onclick={() => onRemove?.(repo.name)}
+        type="button"
+      >
+        <Trash2 size={14} />
+        Remove
+      </button>
+    {:else}
+      <button
+        aria-label={`Copy remove command for ${repo.name}`}
+        class="btn"
+        onclick={() => onCopyRemoveCommand?.(repo.name)}
+        type="button"
+      >
+        <Trash2 size={14} />
+        Copy Remove CLI
+      </button>
+    {/if}
   </div>
 </article>

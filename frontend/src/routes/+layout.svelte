@@ -1,6 +1,5 @@
 <script lang="ts">
   import '../app.css';
-  import { Github } from 'lucide-svelte';
   import ToastStack from '$lib/components/ToastStack.svelte';
 
   let { children } = $props();
@@ -14,7 +13,7 @@
   <header class="border-b gh-divider bg-[#010409]">
     <div class="repo-shell flex items-center justify-between px-4 py-3">
       <a class="flex items-center gap-3 text-sm font-semibold text-[#f0f6fc]" href="/">
-        <Github size={20} />
+        <img alt="Githree logo" class="h-5 w-5" height="20" src="/logo.svg" width="20" />
         <span>Githree</span>
       </a>
       <nav aria-label="Global" class="hidden items-center gap-4 text-sm md:flex">

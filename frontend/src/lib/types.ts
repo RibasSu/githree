@@ -88,3 +88,9 @@ export interface ApiError {
   error: string;
   code: string;
 }
+
+export interface AppSettings {
+  web_repo_management: boolean;
+  repos_dir: string;
+  registry_file: string;
+}

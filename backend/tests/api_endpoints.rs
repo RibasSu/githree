@@ -4,7 +4,9 @@ use axum_test::TestServer;
 use githree::git::{
     BlobResponse, CommitDetail, CommitInfo, ReadmeResponse, RefsResponse, RepoInfo, TreeEntry,
 };
+use githree::registry::RepoRegistry;
 use githree::router;
+use githree::state::AppState;
 use serde_json::json;
 use tempfile::tempdir;
 
@@ -162,6 +164,35 @@ async fn api_repository_lifecycle_and_browsing_routes_work() {
     let after_delete = server.get("/api/repos").await;
     let final_repos: Vec<RepoInfo> = after_delete.json();
     assert!(final_repos.is_empty());
+}
+
+#[tokio::test]
+async fn api_can_disable_web_repo_management() {
+    let fixture = common::RepoFixture::new();
+    let temp = tempdir().expect("tempdir");
+    let mut cfg = common::test_config(temp.path());
+    cfg.features.web_repo_management = false;
+    let registry = RepoRegistry::new(cfg.registry_file())
+        .await
+        .expect("create repo registry");
+    let state = AppState::new(cfg, registry);
+    let server = TestServer::new(router::build_router(state)).expect("create test server");
+
+    let settings = server.get("/api/settings").await;
+    settings.assert_status_ok();
+    let payload: serde_json::Value = settings.json();
+    assert_eq!(payload["web_repo_management"], false);
+
+    let add = server
+        .post("/api/repos")
+        .json(&json!({
+            "url": fixture.remote_url(),
+            "name": "disabled-repo"
+        }))
+        .await;
+    add.assert_status(axum::http::StatusCode::FORBIDDEN);
+    let add_json: serde_json::Value = add.json();
+    assert_eq!(add_json["code"], "FORBIDDEN");
 }
 
 #[tokio::test]

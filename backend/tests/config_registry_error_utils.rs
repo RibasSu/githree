@@ -39,6 +39,11 @@ async fn app_error_into_response_maps_status_and_code() {
             "CLONE_ERROR",
         ),
         (
+            AppError::Forbidden("forbidden".to_string()),
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+        ),
+        (
             AppError::GitError("git failed".to_string()),
             StatusCode::INTERNAL_SERVER_ERROR,
             "GIT_ERROR",

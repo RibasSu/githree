@@ -6,7 +6,7 @@ use std::process::Command;
 
 use chrono::Utc;
 use githree::config::{
-    AppConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
+    AppConfig, FeaturesConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
 };
 use githree::git;
 use githree::git::RepoInfo;
@@ -168,6 +168,9 @@ pub fn test_config(base: &Path) -> AppConfig {
             interval_minutes: 30,
         },
         repos: ReposConfig::default(),
+        features: FeaturesConfig {
+            web_repo_management: true,
+        },
     }
 }
 

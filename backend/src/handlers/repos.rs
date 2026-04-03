@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use axum::{Json, extract::Path, extract::State, http::StatusCode};
 use chrono::Utc;
+use serde::Serialize;
 use tokio::task::spawn_blocking;
 use tokio::time::{Duration, timeout};
 use tracing::{info, instrument};
@@ -10,11 +11,31 @@ use crate::error::AppError;
 use crate::git::{self, AddRepoRequest, RepoInfo};
 use crate::state::AppState;
 
+#[derive(Debug, Serialize)]
+pub struct SettingsResponse {
+    pub web_repo_management: bool,
+    pub repos_dir: String,
+    pub registry_file: String,
+}
+
+#[instrument(skip(state))]
+pub async fn get_settings(
+    State(state): State<AppState>,
+) -> Result<Json<SettingsResponse>, AppError> {
+    Ok(Json(SettingsResponse {
+        web_repo_management: state.config.features.web_repo_management,
+        repos_dir: state.config.storage.repos_dir.clone(),
+        registry_file: state.config.storage.registry_file.clone(),
+    }))
+}
+
 #[instrument(skip(state, payload), fields(repo_url = %payload.url))]
 pub async fn add_repo(
     State(state): State<AppState>,
     Json(payload): Json<AddRepoRequest>,
 ) -> Result<Json<RepoInfo>, AppError> {
+    ensure_management_enabled(&state)?;
+
     if payload.url.trim().is_empty() {
         return Err(AppError::InvalidRequest(
             "repository URL cannot be empty".to_string(),
@@ -50,6 +71,8 @@ pub async fn delete_repo(
     State(state): State<AppState>,
     Path(name): Path<String>,
 ) -> Result<StatusCode, AppError> {
+    ensure_management_enabled(&state)?;
+
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
     state.registry.remove(&name).await?;
 
@@ -70,6 +93,8 @@ pub async fn fetch_repo(
     State(state): State<AppState>,
     Path(name): Path<String>,
 ) -> Result<Json<RepoInfo>, AppError> {
+    ensure_management_enabled(&state)?;
+
     let existing = state.registry.get(&name).await?;
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
 
@@ -146,4 +171,13 @@ async fn build_repo_info(
 
 fn join_error(err: tokio::task::JoinError) -> AppError {
     AppError::IoError(format!("blocking task join error: {err}"))
+}
+
+fn ensure_management_enabled(state: &AppState) -> Result<(), AppError> {
+    if state.config.features.web_repo_management {
+        return Ok(());
+    }
+    Err(AppError::Forbidden(
+        "repository management via web API is disabled".to_string(),
+    ))
 }

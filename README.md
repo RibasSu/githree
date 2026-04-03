@@ -96,6 +96,17 @@ interval_minutes = 30
 
 [repos]
 credentials = []
+
+[features]
+web_repo_management = false
+```
+
+When `web_repo_management = false`, `POST /api/repos`, `DELETE /api/repos/{name}`, and `POST /api/repos/{name}/fetch` are blocked from the web API and the frontend switches to CLI-command generation for repository add/remove operations.
+
+You can override this flag at runtime:
+
+```bash
+GITHREE_WEB_REPO_MANAGEMENT=true ./githree
 ```
 
 ### HTTPS Credentials Per Host
@@ -120,6 +131,7 @@ All endpoints are under `/api`.
 
 | Method | Endpoint | Description |
 |---|---|---|
+| GET | `/settings` | Runtime flags (including web repo management mode) |
 | POST | `/repos` | Register/clone repository |
 | GET | `/repos` | List registered repositories |
 | DELETE | `/repos/{name}` | Remove repository from registry/cache |

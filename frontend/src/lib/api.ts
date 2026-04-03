@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import type {
   BlobResponse,
+  AppSettings,
   CommitDetail,
   CommitInfo,
   ReadmeResponse,
@@ -127,6 +128,10 @@ async function request<T>(
 
 export const api = {
   notify: toast,
+
+  getSettings() {
+    return request<AppSettings>('/settings', { cacheTtlMs: 60_000 });
+  },
 
   listRepos() {
     return request<RepoInfo[]>('/repos', { cacheTtlMs: 15_000 });

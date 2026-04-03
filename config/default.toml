@@ -20,6 +20,9 @@ interval_minutes = 30
 [repos]
 credentials = []
 
+[features]
+web_repo_management = false
+
 # Example private HTTPS credentials:
 # [[repos.credentials]]
 # host = "gitlab.mycompany.com"

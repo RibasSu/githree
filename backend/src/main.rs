@@ -117,7 +117,9 @@ mod tests {
     use tokio::time::Duration;
 
     use super::*;
-    use githree::config::{FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig};
+    use githree::config::{
+        FeaturesConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
+    };
     use githree::git::RepoInfo;
 
     fn run_git(args: &[&str], cwd: Option<&Path>) {
@@ -158,6 +160,9 @@ mod tests {
                 interval_minutes: 1,
             },
             repos: ReposConfig::default(),
+            features: FeaturesConfig {
+                web_repo_management: true,
+            },
         }
     }
 

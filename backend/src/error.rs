@@ -18,6 +18,8 @@ pub enum AppError {
     InvalidRequest(String),
     #[error("clone error: {0}")]
     CloneError(String),
+    #[error("forbidden: {0}")]
+    Forbidden(String),
 }
 
 #[derive(Debug, Serialize)]
@@ -32,6 +34,7 @@ impl AppError {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::InvalidRequest(_) => StatusCode::BAD_REQUEST,
             Self::CloneError(_) => StatusCode::BAD_GATEWAY,
+            Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::GitError(_) | Self::IoError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -41,6 +44,7 @@ impl AppError {
             Self::NotFound(_) => "NOT_FOUND",
             Self::InvalidRequest(_) => "INVALID_REQUEST",
             Self::CloneError(_) => "CLONE_ERROR",
+            Self::Forbidden(_) => "FORBIDDEN",
             Self::GitError(_) => "GIT_ERROR",
             Self::IoError(_) => "IO_ERROR",
         }

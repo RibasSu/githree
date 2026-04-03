@@ -18,6 +18,8 @@ pub struct AppConfig {
     pub fetch: FetchConfig,
     #[serde(default)]
     pub repos: ReposConfig,
+    #[serde(default)]
+    pub features: FeaturesConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -58,6 +60,11 @@ pub struct RepoCredential {
     pub host: String,
     pub username: String,
     pub password: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct FeaturesConfig {
+    pub web_repo_management: bool,
 }
 
 impl Default for ServerConfig {
@@ -116,6 +123,9 @@ impl AppConfig {
         cfg.storage.registry_file = expand_tilde(&cfg.storage.registry_file);
         cfg.storage.static_dir = expand_tilde(&cfg.storage.static_dir);
         cfg.git.ssh_private_key_path = expand_tilde(&cfg.git.ssh_private_key_path);
+        if let Ok(value) = env::var("GITHREE_WEB_REPO_MANAGEMENT") {
+            cfg.features.web_repo_management = parse_bool_env(&value)?;
+        }
         Ok(cfg)
     }
 
@@ -133,6 +143,16 @@ impl AppConfig {
 
     pub fn static_dir(&self) -> PathBuf {
         PathBuf::from(&self.storage.static_dir)
+    }
+}
+
+fn parse_bool_env(value: &str) -> Result<bool, AppError> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        other => Err(AppError::InvalidRequest(format!(
+            "invalid boolean for GITHREE_WEB_REPO_MANAGEMENT: {other}"
+        ))),
     }
 }
 
