@@ -1,38 +1,52 @@
 # Code of Conduct
 
-## Our Pledge
+## Purpose
 
-We are committed to making participation in this project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, education, socioeconomic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
+This policy exists to keep collaboration in this repository lawful, orderly, and technically productive.
+It focuses on concrete misconduct and disruptive behavior in repository spaces.
 
-## Our Standards
+## Scope (Repository Only)
 
-Examples of behavior that contributes to a positive environment:
+This Code of Conduct applies only to activity in this repository, including:
 
-- being respectful and empathetic
-- giving constructive, specific feedback
-- assuming good intent
-- focusing on what is best for the community
+- issues
+- pull requests
+- code review comments
+- discussions
+- commits and commit messages
+- wiki and other repository-owned content
 
-Examples of unacceptable behavior:
+It does not apply to social media, personal websites, private chats, third-party communities, or any off-repository activity.
+Maintainers enforce this policy only for repository activity.
 
-- harassment, hate speech, or personal attacks
-- trolling, insulting, or derogatory comments
-- publishing private information without permission
-- any conduct that is inappropriate in a professional setting
+## Prohibited Conduct
 
-## Enforcement Responsibilities
+The following behavior is prohibited in repository spaces:
 
-Project maintainers are responsible for clarifying and enforcing standards of acceptable behavior and may take corrective action for behavior deemed inappropriate, threatening, offensive, or harmful.
+- threats of violence, intimidation, or coercion
+- blackmail, extortion, or fraud attempts
+- doxxing or non-consensual publication of private personal data
+- phishing, credential theft, malware submission, or exploit delivery
+- unauthorized access attempts, tampering, or supply-chain attacks
+- spam, scam content, or bot flooding that disrupts repository operations
+- deliberate vandalism or sabotage of project resources
+- impersonation of maintainers or contributors to mislead others
+- persistent disorderly behavior that prevents normal collaboration after warning
 
-## Scope
+## Enforcement Process
 
-This Code of Conduct applies within all project spaces and in public spaces when an individual is officially representing the project.
+Maintainers may take proportional action for violations in repository spaces, including:
 
-## Enforcement
+- content removal
+- comment/thread locking
+- temporary interaction limits
+- permanent ban from repository participation
 
-If you experience or witness unacceptable behavior, report it to the maintainers. All reports will be reviewed and investigated promptly and fairly.
+## Reporting
 
-## Attribution
+If you witness a violation in this repository, report it to maintainers with links and evidence from repository activity.
+Reports should be specific and limited to repository context.
 
-This document is adapted from the Contributor Covenant, version 2.1:
-https://www.contributor-covenant.org/version/2/1/code_of_conduct/
+## Legal Notice
+
+For immediate threats or criminal emergencies, contact local authorities first.
