@@ -27,6 +27,6 @@
     "dompurify": "^3.3.3",
     "lucide-svelte": "^0.508.0",
     "marked": "^15.0.12",
-    "shiki": "^3.23.0"
+    "shiki": "^4.0.2"
   }
 }
