@@ -1,11 +1,3 @@
-mod config;
-mod error;
-mod git;
-mod handlers;
-mod registry;
-mod router;
-mod state;
-
 use chrono::Utc;
 use tokio::net::TcpListener;
 use tokio::task::spawn_blocking;
@@ -13,9 +5,10 @@ use tokio::time::{self, Duration};
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
-use crate::config::AppConfig;
-use crate::error::AppError;
-use crate::state::AppState;
+use githree::config::AppConfig;
+use githree::error::AppError;
+use githree::state::AppState;
+use githree::{git, registry, router};
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
