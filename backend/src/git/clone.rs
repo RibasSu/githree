@@ -170,7 +170,8 @@ mod tests {
 
     use super::*;
     use crate::config::{
-        FeaturesConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
+        BrandingConfig, CaddyConfig, FeaturesConfig, FetchConfig, GitConfig, ReposConfig,
+        ServerConfig, StorageConfig,
     };
 
     fn test_config_with_credentials() -> AppConfig {
@@ -205,6 +206,8 @@ mod tests {
             features: FeaturesConfig {
                 web_repo_management: true,
             },
+            branding: BrandingConfig::default(),
+            caddy: CaddyConfig::default(),
         }
     }
 

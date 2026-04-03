@@ -187,6 +187,8 @@ async fn api_can_disable_web_repo_management() {
     settings.assert_status_ok();
     let payload: serde_json::Value = settings.json();
     assert_eq!(payload["web_repo_management"], false);
+    assert_eq!(payload["app_name"], "Githree");
+    assert_eq!(payload["caddy_enabled"], false);
 
     let add = server
         .post("/api/repos")

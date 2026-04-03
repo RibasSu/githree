@@ -21,6 +21,10 @@ pub struct AppConfig {
     pub repos: ReposConfig,
     #[serde(default)]
     pub features: FeaturesConfig,
+    #[serde(default)]
+    pub branding: BrandingConfig,
+    #[serde(default)]
+    pub caddy: CaddyConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -71,6 +75,29 @@ pub struct FeaturesConfig {
     pub web_repo_management: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct BrandingConfig {
+    pub app_name: String,
+    pub logo_url: String,
+    pub site_url: String,
+    pub domain: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct CaddyConfig {
+    pub enabled: bool,
+    pub command: String,
+    #[serde(default)]
+    pub config_file: Option<String>,
+    pub adapter: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub working_dir: Option<String>,
+}
+
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
@@ -111,6 +138,30 @@ impl Default for FetchConfig {
     }
 }
 
+impl Default for BrandingConfig {
+    fn default() -> Self {
+        Self {
+            app_name: "Githree".to_string(),
+            logo_url: "/logo.svg".to_string(),
+            site_url: "https://githree.org".to_string(),
+            domain: "githree.org".to_string(),
+        }
+    }
+}
+
+impl Default for CaddyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            command: "caddy".to_string(),
+            config_file: None,
+            adapter: "caddyfile".to_string(),
+            args: vec![],
+            working_dir: None,
+        }
+    }
+}
+
 impl AppConfig {
     pub fn load() -> Result<Self, AppError> {
         let config_path =
@@ -128,8 +179,49 @@ impl AppConfig {
         cfg.storage.registry_file = expand_tilde(&cfg.storage.registry_file);
         cfg.storage.static_dir = expand_tilde(&cfg.storage.static_dir);
         cfg.git.ssh_private_key_path = expand_tilde(&cfg.git.ssh_private_key_path);
+        if let Some(config_file) = cfg.caddy.config_file.as_ref() {
+            cfg.caddy.config_file = Some(expand_tilde(config_file));
+        }
+        if let Some(working_dir) = cfg.caddy.working_dir.as_ref() {
+            cfg.caddy.working_dir = Some(expand_tilde(working_dir));
+        }
         if let Ok(value) = env::var("GITHREE_WEB_REPO_MANAGEMENT") {
-            cfg.features.web_repo_management = parse_bool_env(&value)?;
+            cfg.features.web_repo_management =
+                parse_bool_env_for("GITHREE_WEB_REPO_MANAGEMENT", &value)?;
+        }
+        if let Ok(value) = env::var("GITHREE_APP_NAME") {
+            cfg.branding.app_name = value;
+        }
+        if let Ok(value) = env::var("GITHREE_LOGO_URL") {
+            cfg.branding.logo_url = value;
+        }
+        if let Ok(value) = env::var("GITHREE_SITE_URL") {
+            cfg.branding.site_url = value;
+        }
+        if let Ok(value) = env::var("GITHREE_DOMAIN") {
+            cfg.branding.domain = value;
+        }
+        if let Ok(value) = env::var("GITHREE_CADDY_ENABLED") {
+            cfg.caddy.enabled = parse_bool_env_for("GITHREE_CADDY_ENABLED", &value)?;
+        }
+        if let Ok(value) = env::var("GITHREE_CADDY_COMMAND") {
+            cfg.caddy.command = value;
+        }
+        if let Ok(value) = env::var("GITHREE_CADDY_CONFIG_FILE") {
+            let trimmed = value.trim();
+            cfg.caddy.config_file = if trimmed.is_empty() {
+                None
+            } else {
+                Some(expand_tilde(trimmed))
+            };
+        }
+        if let Ok(value) = env::var("GITHREE_CADDY_WORKING_DIR") {
+            let trimmed = value.trim();
+            cfg.caddy.working_dir = if trimmed.is_empty() {
+                None
+            } else {
+                Some(expand_tilde(trimmed))
+            };
         }
         if let Ok(value) = env::var("GITHREE_FETCH_INTERVAL") {
             cfg.fetch.interval = Some(value);
@@ -175,12 +267,12 @@ impl FetchConfig {
     }
 }
 
-fn parse_bool_env(value: &str) -> Result<bool, AppError> {
+fn parse_bool_env_for(var_name: &str, value: &str) -> Result<bool, AppError> {
     match value.trim().to_ascii_lowercase().as_str() {
         "1" | "true" | "yes" | "on" => Ok(true),
         "0" | "false" | "no" | "off" => Ok(false),
         other => Err(AppError::InvalidRequest(format!(
-            "invalid boolean for GITHREE_WEB_REPO_MANAGEMENT: {other}"
+            "invalid boolean for {var_name}: {other}"
         ))),
     }
 }
@@ -296,11 +388,11 @@ mod tests {
 
     #[test]
     fn parse_bool_env_accepts_true_false_and_rejects_invalid() {
-        assert!(parse_bool_env("true").expect("parse true"));
-        assert!(parse_bool_env(" YES ").expect("parse yes"));
-        assert!(!parse_bool_env("false").expect("parse false"));
-        assert!(!parse_bool_env("off").expect("parse off"));
-        assert!(parse_bool_env("definitely-not-bool").is_err());
+        assert!(parse_bool_env_for("GITHREE_WEB_REPO_MANAGEMENT", "true").expect("parse true"));
+        assert!(parse_bool_env_for("GITHREE_WEB_REPO_MANAGEMENT", " YES ").expect("parse yes"));
+        assert!(!parse_bool_env_for("GITHREE_WEB_REPO_MANAGEMENT", "false").expect("parse false"));
+        assert!(!parse_bool_env_for("GITHREE_WEB_REPO_MANAGEMENT", "off").expect("parse off"));
+        assert!(parse_bool_env_for("GITHREE_WEB_REPO_MANAGEMENT", "definitely-not-bool").is_err());
     }
 
     #[test]
@@ -370,6 +462,19 @@ interval_minutes = 5
 
 [features]
 web_repo_management = true
+
+[branding]
+app_name = "Githree Config"
+logo_url = "/brand/logo.svg"
+site_url = "https://config.example.com"
+domain = "config.example.com"
+
+[caddy]
+enabled = false
+command = "caddy"
+config_file = "./config/Caddyfile"
+adapter = "caddyfile"
+args = []
 "#,
         )
         .expect("write config file");
@@ -379,6 +484,9 @@ web_repo_management = true
             env::set_var("GITHREE_CONFIG", &config_path);
             env::set_var("GITHREE_WEB_REPO_MANAGEMENT", "off");
             env::set_var("GITHREE_FETCH_INTERVAL", "2m");
+            env::set_var("GITHREE_APP_NAME", "Githree Env");
+            env::set_var("GITHREE_CADDY_ENABLED", "on");
+            env::set_var("GITHREE_CADDY_WORKING_DIR", "~/githree");
         }
 
         let loaded = AppConfig::load().expect("load config");
@@ -387,12 +495,23 @@ web_repo_management = true
             loaded.fetch.sync_interval().expect("sync interval"),
             Duration::from_secs(120)
         );
+        assert_eq!(loaded.branding.app_name, "Githree Env");
+        assert!(loaded.caddy.enabled);
+        assert!(loaded.caddy.working_dir.is_some());
+        let caddy_working_dir = loaded.caddy.working_dir.clone().expect("working dir");
+        assert!(
+            !caddy_working_dir.contains("~/"),
+            "working dir should expand HOME: {caddy_working_dir}"
+        );
 
         // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
         unsafe {
             env::remove_var("GITHREE_CONFIG");
             env::remove_var("GITHREE_WEB_REPO_MANAGEMENT");
             env::remove_var("GITHREE_FETCH_INTERVAL");
+            env::remove_var("GITHREE_APP_NAME");
+            env::remove_var("GITHREE_CADDY_ENABLED");
+            env::remove_var("GITHREE_CADDY_WORKING_DIR");
         }
     }
 

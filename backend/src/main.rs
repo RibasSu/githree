@@ -22,6 +22,7 @@ async fn main() -> Result<(), AppError> {
 
     let registry = registry::RepoRegistry::new(config.registry_file()).await?;
     let state = AppState::new(config, registry);
+    maybe_launch_caddy(&state.config);
 
     if state.config.fetch.enabled {
         let background_state = state.clone();
@@ -37,6 +38,101 @@ async fn main() -> Result<(), AppError> {
     serve_http(listener, app)
         .await
         .map_err(|err| AppError::IoError(err.to_string()))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CaddyLaunchSpec {
+    command: String,
+    args: Vec<String>,
+    working_dir: Option<String>,
+}
+
+fn maybe_launch_caddy(config: &AppConfig) {
+    let Some(spec) = resolve_caddy_launch_spec(config) else {
+        return;
+    };
+
+    let mut cmd = std::process::Command::new(&spec.command);
+    cmd.args(&spec.args);
+    if let Some(working_dir) = spec.working_dir.as_ref() {
+        cmd.current_dir(working_dir);
+    }
+
+    match cmd.spawn() {
+        Ok(child) => {
+            info!(
+                pid = child.id(),
+                command = %spec.command,
+                args = ?spec.args,
+                "caddy process launched"
+            );
+        }
+        Err(err) => {
+            warn!(error = %err, command = %spec.command, "failed to launch caddy process");
+        }
+    }
+}
+
+fn resolve_caddy_launch_spec(config: &AppConfig) -> Option<CaddyLaunchSpec> {
+    if !config.caddy.enabled {
+        return None;
+    }
+
+    let command = config.caddy.command.trim();
+    if command.is_empty() {
+        warn!("caddy is enabled but command is empty; skipping launcher");
+        return None;
+    }
+
+    let args = if !config.caddy.args.is_empty() {
+        config.caddy.args.clone()
+    } else if let Some(config_file) = config.caddy.config_file.as_ref() {
+        let mut values = vec![
+            "run".to_string(),
+            "--config".to_string(),
+            config_file.to_string(),
+        ];
+        let adapter = config.caddy.adapter.trim();
+        if !adapter.is_empty() {
+            values.push("--adapter".to_string());
+            values.push(adapter.to_string());
+        }
+        values
+    } else {
+        let from = caddy_from_value(config);
+        if from.is_empty() {
+            warn!(
+                "caddy is enabled but no domain/site_url was configured; skipping reverse-proxy launcher"
+            );
+            return None;
+        }
+        vec![
+            "reverse-proxy".to_string(),
+            "--from".to_string(),
+            from,
+            "--to".to_string(),
+            format!("127.0.0.1:{}", config.server.port),
+        ]
+    };
+
+    if args.is_empty() {
+        warn!("caddy is enabled but no launch arguments were resolved; skipping launcher");
+        return None;
+    }
+
+    Some(CaddyLaunchSpec {
+        command: command.to_string(),
+        args,
+        working_dir: config.caddy.working_dir.clone(),
+    })
+}
+
+fn caddy_from_value(config: &AppConfig) -> String {
+    let domain = config.branding.domain.trim();
+    if !domain.is_empty() {
+        return domain.to_string();
+    }
+    config.branding.site_url.trim().to_string()
 }
 
 fn init_tracing() {
@@ -141,7 +237,8 @@ mod tests {
 
     use super::*;
     use githree::config::{
-        FeaturesConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
+        BrandingConfig, CaddyConfig, FeaturesConfig, FetchConfig, GitConfig, ReposConfig,
+        ServerConfig, StorageConfig,
     };
     use githree::git::RepoInfo;
 
@@ -189,7 +286,57 @@ mod tests {
             features: FeaturesConfig {
                 web_repo_management: true,
             },
+            branding: BrandingConfig::default(),
+            caddy: CaddyConfig::default(),
         }
+    }
+
+    #[test]
+    fn resolve_caddy_launch_spec_returns_none_when_disabled() {
+        let mut config = make_config(Path::new("/tmp"));
+        config.caddy.enabled = false;
+        assert!(resolve_caddy_launch_spec(&config).is_none());
+    }
+
+    #[test]
+    fn resolve_caddy_launch_spec_uses_config_file_when_present() {
+        let mut config = make_config(Path::new("/tmp"));
+        config.caddy.enabled = true;
+        config.caddy.config_file = Some("./config/Caddyfile".to_string());
+        config.caddy.adapter = "caddyfile".to_string();
+
+        let spec = resolve_caddy_launch_spec(&config).expect("launch spec");
+        assert_eq!(spec.command, "caddy");
+        assert_eq!(
+            spec.args,
+            vec![
+                "run".to_string(),
+                "--config".to_string(),
+                "./config/Caddyfile".to_string(),
+                "--adapter".to_string(),
+                "caddyfile".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_caddy_launch_spec_falls_back_to_reverse_proxy_mode() {
+        let mut config = make_config(Path::new("/tmp"));
+        config.caddy.enabled = true;
+        config.server.port = 3001;
+        config.branding.domain = "githree.example.com".to_string();
+
+        let spec = resolve_caddy_launch_spec(&config).expect("launch spec");
+        assert_eq!(
+            spec.args,
+            vec![
+                "reverse-proxy".to_string(),
+                "--from".to_string(),
+                "githree.example.com".to_string(),
+                "--to".to_string(),
+                "127.0.0.1:3001".to_string(),
+            ]
+        );
     }
 
     fn create_remote_fixture() -> (TempDir, PathBuf, String) {

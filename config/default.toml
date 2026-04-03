@@ -23,6 +23,20 @@ credentials = []
 [features]
 web_repo_management = false
 
+[branding]
+app_name = "Githree"
+logo_url = "/logo.svg"
+site_url = "https://githree.org"
+domain = "githree.org"
+
+[caddy]
+enabled = false
+command = "caddy"
+config_file = "./config/Caddyfile"
+adapter = "caddyfile"
+args = []
+# working_dir = "."
+
 # Example private HTTPS credentials:
 # [[repos.credentials]]
 # host = "gitlab.mycompany.com"

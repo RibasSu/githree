@@ -91,7 +91,7 @@ fetch_cooldown_secs = 20
 ssh_private_key_path = "~/.ssh/id_rsa"
 
 [fetch]
-enabled = false
+enabled = true
 interval = "60s"
 
 [repos]
@@ -99,6 +99,20 @@ credentials = []
 
 [features]
 web_repo_management = false
+
+[branding]
+app_name = "Githree"
+logo_url = "/logo.svg"
+site_url = "https://githree.org"
+domain = "githree.org"
+
+[caddy]
+enabled = false
+command = "caddy"
+config_file = "./config/Caddyfile"
+adapter = "caddyfile"
+args = []
+# working_dir = "."
 ```
 
 When `web_repo_management = false`, `POST /api/repos`, `DELETE /api/repos/{name}`, and `POST /api/repos/{name}/fetch` are blocked from the web API and the frontend switches to CLI-command generation for repository add/remove operations.
@@ -120,6 +134,47 @@ You can also override it at runtime:
 ```bash
 GITHREE_FETCH_INTERVAL=2m ./githree
 ```
+
+### Branding and Public URL
+
+You can define application identity and links directly in config:
+
+- `branding.app_name`: UI product name
+- `branding.logo_url`: logo path or URL used in header/footer
+- `branding.site_url`: canonical project URL
+- `branding.domain`: domain label shown in navigation
+
+Runtime overrides are available:
+
+```bash
+GITHREE_APP_NAME="My Git Viewer" \
+GITHREE_LOGO_URL="/assets/logo.svg" \
+GITHREE_SITE_URL="https://git.example.com" \
+GITHREE_DOMAIN="git.example.com" \
+./githree
+```
+
+### Optional Caddy Launcher
+
+Set `caddy.enabled = true` to let Githree spawn Caddy on startup.
+
+- If `caddy.args` is set, those args are used as-is.
+- Else if `caddy.config_file` is set, Githree runs:
+  - `caddy run --config <file> --adapter <adapter>`
+- Else Githree falls back to:
+  - `caddy reverse-proxy --from <branding.domain|branding.site_url> --to 127.0.0.1:<server.port>`
+
+Runtime overrides:
+
+```bash
+GITHREE_CADDY_ENABLED=true \
+GITHREE_CADDY_COMMAND=caddy \
+GITHREE_CADDY_CONFIG_FILE=./config/Caddyfile \
+GITHREE_CADDY_WORKING_DIR=. \
+./githree
+```
+
+A starter Caddyfile is included at [`config/Caddyfile`](./config/Caddyfile).
 
 ### HTTPS Credentials Per Host
 
@@ -143,7 +198,7 @@ All endpoints are under `/api`.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/settings` | Runtime flags (including web repo management mode) |
+| GET | `/settings` | Runtime settings (repo management mode, branding, and Caddy flag) |
 | POST | `/repos` | Register/clone repository |
 | GET | `/repos` | List registered repositories |
 | DELETE | `/repos/{name}` | Remove repository from registry/cache |

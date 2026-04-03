@@ -16,6 +16,11 @@ pub struct SettingsResponse {
     pub web_repo_management: bool,
     pub repos_dir: String,
     pub registry_file: String,
+    pub app_name: String,
+    pub logo_url: String,
+    pub site_url: String,
+    pub domain: String,
+    pub caddy_enabled: bool,
 }
 
 #[instrument(skip(state))]
@@ -26,6 +31,11 @@ pub async fn get_settings(
         web_repo_management: state.config.features.web_repo_management,
         repos_dir: state.config.storage.repos_dir.clone(),
         registry_file: state.config.storage.registry_file.clone(),
+        app_name: state.config.branding.app_name.clone(),
+        logo_url: state.config.branding.logo_url.clone(),
+        site_url: state.config.branding.site_url.clone(),
+        domain: state.config.branding.domain.clone(),
+        caddy_enabled: state.config.caddy.enabled,
     }))
 }
 
@@ -189,7 +199,8 @@ mod tests {
     use std::process::Command;
 
     use crate::config::{
-        AppConfig, FeaturesConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
+        AppConfig, BrandingConfig, CaddyConfig, FeaturesConfig, FetchConfig, GitConfig,
+        ReposConfig, ServerConfig, StorageConfig,
     };
     use crate::registry::RepoRegistry;
 
@@ -221,6 +232,8 @@ mod tests {
             features: FeaturesConfig {
                 web_repo_management: true,
             },
+            branding: BrandingConfig::default(),
+            caddy: CaddyConfig::default(),
         }
     }
 

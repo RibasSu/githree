@@ -6,7 +6,8 @@ use std::process::Command;
 
 use chrono::Utc;
 use githree::config::{
-    AppConfig, FeaturesConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
+    AppConfig, BrandingConfig, CaddyConfig, FeaturesConfig, FetchConfig, GitConfig, ReposConfig,
+    ServerConfig, StorageConfig,
 };
 use githree::git;
 use githree::git::RepoInfo;
@@ -172,6 +173,8 @@ pub fn test_config(base: &Path) -> AppConfig {
         features: FeaturesConfig {
             web_repo_management: true,
         },
+        branding: BrandingConfig::default(),
+        caddy: CaddyConfig::default(),
     }
 }
 

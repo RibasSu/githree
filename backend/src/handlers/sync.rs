@@ -71,7 +71,8 @@ mod tests {
     use std::process::Command;
 
     use crate::config::{
-        AppConfig, FeaturesConfig, FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig,
+        AppConfig, BrandingConfig, CaddyConfig, FeaturesConfig, FetchConfig, GitConfig,
+        ReposConfig, ServerConfig, StorageConfig,
     };
     use crate::registry::RepoRegistry;
 
@@ -113,6 +114,8 @@ mod tests {
             features: FeaturesConfig {
                 web_repo_management: true,
             },
+            branding: BrandingConfig::default(),
+            caddy: CaddyConfig::default(),
         }
     }
 

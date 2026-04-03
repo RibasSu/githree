@@ -99,4 +99,9 @@ export interface AppSettings {
   web_repo_management: boolean;
   repos_dir: string;
   registry_file: string;
+  app_name?: string;
+  logo_url?: string;
+  site_url?: string;
+  domain?: string;
+  caddy_enabled?: boolean;
 }

@@ -1,0 +1,9 @@
+# Replace this host with your domain when deploying.
+githree.org {
+    reverse_proxy 127.0.0.1:3001
+}
+
+# Local fallback for quick testing:
+:8080 {
+    reverse_proxy 127.0.0.1:3001
+}
