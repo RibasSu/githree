@@ -633,13 +633,24 @@ a {
 }
 
 .gh-code-render .shiki {
+  --gh-code-line-height: 1.35rem;
   margin: 0;
   background: transparent !important;
   color: #f0f6fc !important;
+  line-height: var(--gh-code-line-height) !important;
 }
 
 .gh-code-render .shiki code {
   color: inherit !important;
+  line-height: var(--gh-code-line-height) !important;
+}
+
+.gh-code-render .shiki .line {
+  line-height: var(--gh-code-line-height) !important;
+}
+
+.gh-code-render .gh-code-line-number {
+  line-height: 1.35rem;
 }
 
 .gh-muted {

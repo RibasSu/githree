@@ -288,7 +288,7 @@
     <div class="gh-code-render grid grid-cols-[56px_1fr] overflow-x-auto bg-[#0d1117] font-mono text-xs">
       <div aria-hidden="true" class="select-none border-r gh-divider px-3 py-4 text-right gh-muted">
         {#each lineNumbers(lineCount) as lineNo}
-          <div class="leading-6">{lineNo}</div>
+          <div class="gh-code-line-number">{lineNo}</div>
         {/each}
       </div>
       <div class="p-4 text-[#c9d1d9]">
