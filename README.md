@@ -117,6 +117,30 @@ args = []
 
 When `web_repo_management = false`, `POST /api/repos`, `DELETE /api/repos/{name}`, and `POST /api/repos/{name}/fetch` are blocked from the web API and the frontend switches to CLI-command generation for repository add/remove operations.
 
+### Backend CLI Repo Commands
+
+Githree provides built-in repository management commands in the backend binary:
+
+```bash
+githree repo add --url https://github.com/user/repo.git --name my-repo
+githree repo remove --name my-repo
+githree repo fetch --name my-repo
+githree repo list
+```
+
+Docker-first usage:
+
+```bash
+docker compose exec -T githree githree repo add --url https://github.com/user/repo.git --name my-repo
+docker compose exec -T githree githree repo list
+```
+
+Local source checkout fallback:
+
+```bash
+cargo run --manifest-path backend/Cargo.toml -- repo add --url https://github.com/user/repo.git --name my-repo
+```
+
 You can override this flag at runtime:
 
 ```bash

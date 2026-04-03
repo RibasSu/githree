@@ -119,19 +119,6 @@
     }
   }
 
-  function deriveRepoName(url: string, alias?: string): string {
-    const base = alias && alias.trim().length > 0 ? alias.trim() : deriveNameFromUrl(url);
-    const lowered = base.toLowerCase();
-    const sanitized = lowered.replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    return sanitized.length > 0 ? sanitized : 'repo';
-  }
-
-  function deriveNameFromUrl(url: string): string {
-    const normalized = url.trim().replace(/\/+$/, '').replace(/\.git$/i, '');
-    const parts = normalized.split(/[/:]/).filter((segment) => segment.length > 0);
-    return parts[parts.length - 1] || 'repo';
-  }
-
   function validateRepoUrl(url: string): string {
     if (url.length === 0) return 'Enter a repository URL.';
     if (/\s/.test(url)) return 'Repository URL must not contain spaces.';
@@ -156,59 +143,34 @@
     return /^[a-z0-9._-]+@[a-z0-9.-]+:[^:\s]+$/i.test(url);
   }
 
-  function detectSource(url: string): 'github' | 'gitlab' | 'generic' {
-    const lowered = url.toLowerCase();
-    if (lowered.includes('github.com')) return 'github';
-    if (lowered.includes('gitlab.com')) return 'gitlab';
-    return 'generic';
-  }
-
   function shellQuote(value: string): string {
     return `'${value.replaceAll("'", "'\"'\"'")}'`;
   }
 
   function buildAddCommand(url: string, alias?: string): string {
-    const name = deriveRepoName(url, alias);
-    const source = detectSource(url);
-    const reposDir = commandReposDir;
-    const registryFile = commandRegistryFile;
+    const urlArg = shellQuote(url);
+    const nameArg = alias?.trim().length ? ` --name ${shellQuote(alias.trim())}` : '';
+    const subcommand = `repo add --url ${urlArg}${nameArg}`;
 
     return [
-      `REPO_URL=${shellQuote(url)}`,
-      `REPO_NAME=${shellQuote(name)}`,
-      `REPOS_DIR=${shellQuote(reposDir)}`,
-      `REGISTRY_FILE=${shellQuote(registryFile)}`,
+      '# Docker (recommended)',
+      `docker compose exec -T githree githree ${subcommand}`,
       '',
-      'command -v jq >/dev/null 2>&1 || { echo "jq is required but was not found in PATH."; exit 1; }',
-      'mkdir -p "$REPOS_DIR"',
-      'mkdir -p "$(dirname "$REGISTRY_FILE")"',
-      'test -f "$REGISTRY_FILE" || echo "[]" > "$REGISTRY_FILE"',
-      'if ! git clone --bare "$REPO_URL" "$REPOS_DIR/$REPO_NAME"; then',
-      '  echo "Clone failed. For SSH URLs, ensure your SSH key is loaded and has access to the repository."',
-      '  echo "Try: ssh-add -L  # list loaded keys"',
-      '  echo "Or use HTTPS URL if preferred."',
-      '  exit 1',
-      'fi',
-      'DEFAULT_BRANCH="$(git --git-dir "$REPOS_DIR/$REPO_NAME" symbolic-ref --short HEAD 2>/dev/null || true)"',
-      'if [ -z "$DEFAULT_BRANCH" ]; then DEFAULT_BRANCH="$(git --git-dir "$REPOS_DIR/$REPO_NAME" for-each-ref --format=\'%(refname:short)\' refs/heads | head -n1)"; fi',
-      'if [ -z "$DEFAULT_BRANCH" ]; then DEFAULT_BRANCH="main"; fi',
-      'SIZE_KB="$(du -sk "$REPOS_DIR/$REPO_NAME" | awk \'{print $1}\')"',
-      'TMP_FILE="$(mktemp)"',
-      `jq --arg name "$REPO_NAME" --arg url "$REPO_URL" --arg branch "$DEFAULT_BRANCH" --arg source ${shellQuote(source)} --argjson size "$SIZE_KB" 'map(select(.name != $name)) + [{name:$name,url:$url,description:null,default_branch:$branch,last_fetched:null,size_kb:$size,source:$source}]' "$REGISTRY_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$REGISTRY_FILE"`
+      '# Local fallback (from repository root)',
+      `cargo run --manifest-path backend/Cargo.toml -- ${subcommand}`
     ].join('\n');
   }
 
   function buildRemoveCommand(name: string): string {
-    const reposDir = commandReposDir;
-    const registryFile = commandRegistryFile;
+    const nameArg = shellQuote(name);
+    const subcommand = `repo remove --name ${nameArg}`;
+
     return [
-      `REPO_NAME=${shellQuote(name)}`,
-      `REPOS_DIR=${shellQuote(reposDir)}`,
-      `REGISTRY_FILE=${shellQuote(registryFile)}`,
+      '# Docker (recommended)',
+      `docker compose exec -T githree githree ${subcommand}`,
       '',
-      'rm -rf "$REPOS_DIR/$REPO_NAME"',
-      'TMP_FILE="$(mktemp)"',
-      "jq --arg name \"$REPO_NAME\" 'map(select(.name != $name))' \"$REGISTRY_FILE\" > \"$TMP_FILE\" && mv \"$TMP_FILE\" \"$REGISTRY_FILE\""
+      '# Local fallback (from repository root)',
+      `cargo run --manifest-path backend/Cargo.toml -- ${subcommand}`
     ].join('\n');
   }
 
