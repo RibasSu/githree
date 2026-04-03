@@ -28,7 +28,7 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
 
     let refs = git::refs::list_refs(&local_path).expect("list refs");
     assert!(refs.branches.iter().any(|branch| branch == "main"));
-    // list_refs returns local branches in the bare clone, which always includes main.
+    // list_refs merges local and remote-tracking branch names.
     assert!(refs.tags.iter().any(|tag| tag == "v1.0.0"));
 
     let root = git::browse::list_tree(&local_path, "main", "").expect("list root tree");
@@ -112,12 +112,45 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
     );
     git::clone::fetch_repo(&local_path, &fixture.remote_url(), &config).expect("fetch repo");
 
+    let branch_tree = git::browse::list_tree(&local_path, "main", "").expect("list main tree");
+    assert!(
+        branch_tree
+            .iter()
+            .any(|entry| entry.name == "after-fetch.txt")
+    );
+
     let remote_tree = git::browse::list_tree(&local_path, "refs/remotes/origin/main", "")
         .expect("list remote-tracking main tree");
     assert!(
         remote_tree
             .iter()
             .any(|entry| entry.name == "after-fetch.txt")
+    );
+
+    common::run_git(
+        &["checkout", "-b", "post-clone-branch"],
+        Some(&fixture.work_dir),
+    );
+    std::fs::write(fixture.work_dir.join("post-branch.txt"), "branch commit\n")
+        .expect("write branch file");
+    common::run_git(&["add", "post-branch.txt"], Some(&fixture.work_dir));
+    common::run_git(
+        &["commit", "-m", "feat: post clone branch"],
+        Some(&fixture.work_dir),
+    );
+    common::run_git(
+        &["push", "-u", "origin", "post-clone-branch"],
+        Some(&fixture.work_dir),
+    );
+    common::run_git(&["checkout", "main"], Some(&fixture.work_dir));
+
+    git::clone::fetch_repo(&local_path, &fixture.remote_url(), &config).expect("fetch branches");
+    let refs_after_fetch = git::refs::list_refs(&local_path).expect("list refs after fetch");
+    assert!(
+        refs_after_fetch
+            .branches
+            .iter()
+            .any(|branch| branch == "post-clone-branch")
     );
 
     let fetched_detail = git::browse::commit_detail(&local_path, &new_hash)
