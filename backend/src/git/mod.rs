@@ -198,6 +198,10 @@ pub fn detect_language(path: &str) -> String {
         return "docker".to_string();
     }
 
+    if matches!(file_name, ".gitignore" | ".dockerignore" | ".ignore") {
+        return "gitignore".to_string();
+    }
+
     let ext = path_ref
         .extension()
         .and_then(|s| s.to_str())

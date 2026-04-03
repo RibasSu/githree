@@ -632,6 +632,16 @@ a {
   padding: 0;
 }
 
+.gh-code-render .shiki {
+  margin: 0;
+  background: transparent !important;
+  color: #c9d1d9 !important;
+}
+
+.gh-code-render .shiki code {
+  color: inherit !important;
+}
+
 .gh-muted {
   color: var(--gh-fg-muted);
 }

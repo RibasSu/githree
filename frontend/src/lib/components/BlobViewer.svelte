@@ -25,7 +25,7 @@
   let renderMode = $state<RenderMode>('code');
   let latestRenderJob = 0;
 
-  const displayContent = $derived(stripSingleTerminalNewline(plainContent));
+  const displayContent = $derived(normalizeCodeDisplay(plainContent));
   const lineCount = $derived(displayContent.length > 0 ? displayContent.split('\n').length : 0);
 
   $effect(() => {
@@ -85,8 +85,8 @@
     }
 
     const decodedContent = decodeText(snapshot.content, snapshot.encoding);
-    next.plainContent = decodedContent;
-    const highlightedContent = stripSingleTerminalNewline(decodedContent);
+    const highlightedContent = normalizeCodeDisplay(decodedContent);
+    next.plainContent = highlightedContent;
 
     if (decodedContent.split('\n').length > MAX_RENDERABLE_LINES) {
       next.renderMode = 'truncated';
@@ -161,9 +161,9 @@
     return Array.from({ length: count }, (_, index) => index + 1);
   }
 
-  function stripSingleTerminalNewline(value: string): string {
-    if (!value.endsWith('\n')) return value;
-    return value.slice(0, -1);
+  function normalizeCodeDisplay(value: string): string {
+    const normalized = value.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    return normalized.replace(/\n+$/u, '');
   }
 
   function escapeHtml(value: string): string {
@@ -281,7 +281,7 @@
       {@html markdownHtml}
     </article>
   {:else}
-    <div class="grid grid-cols-[56px_1fr] overflow-x-auto bg-[#0d1117] font-mono text-xs">
+    <div class="gh-code-render grid grid-cols-[56px_1fr] overflow-x-auto bg-[#0d1117] font-mono text-xs">
       <div aria-hidden="true" class="select-none border-r gh-divider px-3 py-4 text-right gh-muted">
         {#each lineNumbers(lineCount) as lineNo}
           <div class="leading-6">{lineNo}</div>

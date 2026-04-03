@@ -195,6 +195,7 @@ fn git_utilities_cover_name_source_language_and_path_helpers() {
     assert_eq!(git::detect_language("src/main.rs"), "rust");
     assert_eq!(git::detect_language("pkg/index.ts"), "typescript");
     assert_eq!(git::detect_language("docs/README.md"), "markdown");
+    assert_eq!(git::detect_language(".gitignore"), "gitignore");
     assert_eq!(git::detect_language("Dockerfile"), "docker");
     assert_eq!(git::detect_language("deploy/Containerfile"), "docker");
 
