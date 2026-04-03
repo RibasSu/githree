@@ -39,7 +39,7 @@
 
 <div aria-label="Repository file tree" class="card-surface overflow-hidden">
   <table class="w-full text-sm">
-    <thead class="bg-[#161b22] text-xs uppercase tracking-wide gh-muted">
+    <thead class="bg-[#161b22] text-xs uppercase tracking-wide gt-muted">
       <tr>
         <th class="px-4 py-3 text-left">Name</th>
         <th class="px-4 py-3 text-right">Size</th>
@@ -47,11 +47,11 @@
     </thead>
     <tbody>
       {#each sortedEntries as entry}
-        <tr class="border-t gh-divider hover:bg-[#161b22] focus-within:bg-[#161b22]">
+        <tr class="border-t gt-divider hover:bg-[#161b22] focus-within:bg-[#161b22]">
           <td class="px-4 py-3">
             <a
               aria-label={`Open ${entry.path}`}
-              class="gh-focus-accent flex items-center gap-2 rounded-sm outline-none"
+              class="gt-focus-accent flex items-center gap-2 rounded-sm outline-none"
               href={hrefFor(entry)}
             >
               {#if entry.entry_type === 'tree'}
@@ -68,12 +68,12 @@
               <span class="truncate text-[#c9d1d9] hover:underline">{entry.name}</span>
             </a>
           </td>
-          <td class="px-4 py-3 text-right gh-muted">{sizeLabel(entry.size)}</td>
+          <td class="px-4 py-3 text-right gt-muted">{sizeLabel(entry.size)}</td>
         </tr>
       {/each}
       {#if sortedEntries.length === 0}
-        <tr class="border-t gh-divider">
-          <td class="px-4 py-6 text-sm gh-muted" colspan="2">No entries found in this directory.</td>
+        <tr class="border-t gt-divider">
+          <td class="px-4 py-6 text-sm gt-muted" colspan="2">No entries found in this directory.</td>
         </tr>
       {/if}
     </tbody>

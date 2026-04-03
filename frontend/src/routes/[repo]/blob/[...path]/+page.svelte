@@ -122,9 +122,9 @@
   </div>
 
   {#if latestCommit}
-    <div class="card-surface flex flex-wrap items-center gap-3 px-3 py-2 text-xs gh-muted">
+    <div class="card-surface flex flex-wrap items-center gap-3 px-3 py-2 text-xs gt-muted">
       <span>Last commit:</span>
-      <code class="link-accent rounded-sm border gh-divider bg-[#0d1117] px-1.5 py-0.5 font-mono">
+      <code class="link-accent rounded-sm border gt-divider bg-[#0d1117] px-1.5 py-0.5 font-mono">
         {latestCommit.short_hash}
       </code>
       <span>{latestCommit.message_short}</span>
@@ -140,6 +140,6 @@
   {:else if blob}
     <BlobViewer {blob} filePath={data.path} {rawUrl} repo={data.repo} refName={selectedRef || 'main'} />
   {:else}
-    <div class="card-surface p-6 text-sm gh-muted">File not found.</div>
+    <div class="card-surface p-6 text-sm gt-muted">File not found.</div>
   {/if}
 </section>

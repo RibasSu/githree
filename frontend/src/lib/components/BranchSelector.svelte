@@ -102,54 +102,54 @@
   }
 </script>
 
-<div bind:this={rootEl} class={`gh-ref-switcher ${compact ? 'compact' : ''}`}>
+<div bind:this={rootEl} class={`gt-ref-switcher ${compact ? 'compact' : ''}`}>
   {#if !compact}
-    <span class="gh-ref-switcher-label">Ref</span>
+    <span class="gt-ref-switcher-label">Ref</span>
   {/if}
 
   <button
-    aria-controls="gh-ref-menu"
+    aria-controls="gt-ref-menu"
     aria-expanded={open}
-    class="gh-ref-switcher-trigger"
+    class="gt-ref-switcher-trigger"
     onclick={toggleMenu}
     type="button"
   >
     <GitBranch size={14} />
     <span class="truncate">{selected}</span>
-    <ChevronDown class={`gh-ref-chevron ${open ? 'open' : ''}`} size={14} />
+    <ChevronDown class={`gt-ref-chevron ${open ? 'open' : ''}`} size={14} />
   </button>
 
   {#if open}
     <div
-      class="gh-ref-menu"
-      id="gh-ref-menu"
+      class="gt-ref-menu"
+      id="gt-ref-menu"
       role="dialog"
       aria-label="Switch branches and tags"
       tabindex="-1"
       onkeydown={handleKeydown}
     >
-      <div class="gh-ref-menu-header">
+      <div class="gt-ref-menu-header">
         <strong>Switch branches/tags</strong>
-        <button aria-label="Close branch switcher" class="gh-ref-close" onclick={closeMenu} type="button">
+        <button aria-label="Close branch switcher" class="gt-ref-close" onclick={closeMenu} type="button">
           <X size={14} />
         </button>
       </div>
 
-      <label class="gh-ref-search" for="gh-ref-search-input">
-        <Search class="gh-muted" size={14} />
+      <label class="gt-ref-search" for="gt-ref-search-input">
+        <Search class="gt-muted" size={14} />
         <input
           bind:value={search}
-          id="gh-ref-search-input"
+          id="gt-ref-search-input"
           onkeydown={handleSearchKeydown}
           placeholder="Find a branch..."
           type="text"
         />
       </label>
 
-      <div class="gh-ref-tabs" role="tablist" aria-label="Reference type">
+      <div class="gt-ref-tabs" role="tablist" aria-label="Reference type">
         <button
           aria-selected={activeTab === 'branches'}
-          class={`gh-ref-tab ${activeTab === 'branches' ? 'active' : ''}`}
+          class={`gt-ref-tab ${activeTab === 'branches' ? 'active' : ''}`}
           onclick={() => {
             activeTab = 'branches';
             search = '';
@@ -161,7 +161,7 @@
         </button>
         <button
           aria-selected={activeTab === 'tags'}
-          class={`gh-ref-tab ${activeTab === 'tags' ? 'active' : ''}`}
+          class={`gt-ref-tab ${activeTab === 'tags' ? 'active' : ''}`}
           onclick={() => {
             activeTab = 'tags';
             search = '';
@@ -173,26 +173,26 @@
         </button>
       </div>
 
-      <ul class="gh-ref-items" role="listbox" aria-label="Available references">
+      <ul class="gt-ref-items" role="listbox" aria-label="Available references">
         {#if !hasAnyRefs}
-          <li class="gh-ref-empty">No references found.</li>
+          <li class="gt-ref-empty">No references found.</li>
         {:else if activeTab === 'branches'}
           {#if filteredBranches.length === 0}
-            <li class="gh-ref-empty">No matching branches.</li>
+            <li class="gt-ref-empty">No matching branches.</li>
           {:else}
             {#each filteredBranches as branch}
               <li>
                 <button
                   aria-selected={selected === branch}
-                  class={`gh-ref-item ${selected === branch ? 'active' : ''}`}
+                  class={`gt-ref-item ${selected === branch ? 'active' : ''}`}
                   onclick={() => selectRef(branch)}
                   role="option"
                   type="button"
                 >
-                  <span class="gh-ref-check">{#if selected === branch}<Check size={14} />{/if}</span>
+                  <span class="gt-ref-check">{#if selected === branch}<Check size={14} />{/if}</span>
                   <span class="truncate">{branch}</span>
                   {#if branch === refs?.default_branch}
-                    <span class="gh-ref-default">default</span>
+                    <span class="gt-ref-default">default</span>
                   {/if}
                 </button>
               </li>
@@ -200,18 +200,18 @@
           {/if}
         {:else}
           {#if filteredTags.length === 0}
-            <li class="gh-ref-empty">No matching tags.</li>
+            <li class="gt-ref-empty">No matching tags.</li>
           {:else}
             {#each filteredTags as tag}
               <li>
                 <button
                   aria-selected={selected === tag}
-                  class={`gh-ref-item ${selected === tag ? 'active' : ''}`}
+                  class={`gt-ref-item ${selected === tag ? 'active' : ''}`}
                   onclick={() => selectRef(tag)}
                   role="option"
                   type="button"
                 >
-                  <span class="gh-ref-check">
+                  <span class="gt-ref-check">
                     {#if selected === tag}
                       <Check size={14} />
                     {:else}
@@ -227,9 +227,9 @@
       </ul>
 
       {#if showViewAllBranches}
-        <div class="gh-ref-footer">
+        <div class="gt-ref-footer">
           {#if viewAllBranchesHref.length > 0}
-            <a class="gh-ref-footer-link" href={viewAllBranchesHref} onclick={closeMenu}>
+            <a class="gt-ref-footer-link" href={viewAllBranchesHref} onclick={closeMenu}>
               View all branches
             </a>
           {:else}

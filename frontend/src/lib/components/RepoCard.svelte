@@ -21,12 +21,12 @@
   }
 </script>
 
-<article class="grid gap-3 border-t gh-divider px-4 py-3 md:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto] md:items-center">
+<article class="grid gap-3 border-t gt-divider px-4 py-3 md:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto] md:items-center">
   <div class="min-w-0">
     <h3 class="truncate text-[15px] font-semibold text-[#f0f6fc]">
       <a class="hover:underline" href={`/${repo.name}`}>{repo.name}</a>
     </h3>
-    <p class="mt-1 flex items-center gap-2 truncate text-xs gh-muted">
+    <p class="mt-1 flex items-center gap-2 truncate text-xs gt-muted">
       <span class="inline-flex items-center gap-1">
         {#if source === 'github'}
           <Github size={14} />
@@ -47,7 +47,7 @@
       <span class="truncate">{repo.url}</span>
       <ExternalLink size={12} />
     </a>
-    <p class="mt-1 text-xs gh-muted">
+    <p class="mt-1 text-xs gt-muted">
       {#if repo.last_fetched}
         updated {formatRelativeTime(repo.last_fetched)}
       {:else}

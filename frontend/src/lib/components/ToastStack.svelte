@@ -21,7 +21,7 @@
           ? 'border-[#da3633] bg-[#2d0b0b] text-[#ffdcd7]'
           : toast.type === 'success'
             ? 'border-[#f05032] bg-[#3d140e] text-[#ffd7ce]'
-            : 'border-[var(--gh-accent)] bg-[color-mix(in_srgb,var(--gh-accent)_18%,#0d1117)] text-[#c9d1d9]'
+            : 'border-[var(--gt-accent)] bg-[color-mix(in_srgb,var(--gt-accent)_18%,#0d1117)] text-[#c9d1d9]'
       }`}
       in:fly={{ x: 30, duration: 180 }}
       out:fly={{ x: 30, duration: 150 }}

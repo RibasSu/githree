@@ -10,7 +10,7 @@
     <p class="mt-2 text-sm text-[#c9d1d9]">
       Quick guide for Githree error codes, including 404, 500, and other common failures.
     </p>
-    <p class="mt-2 text-xs gh-muted">
+    <p class="mt-2 text-xs gt-muted">
       Use "Open page" to preview the actual global error screen for each status.
     </p>
   </header>
@@ -18,7 +18,7 @@
   <div class="card-surface overflow-x-auto">
     <table class="w-full min-w-[780px] border-collapse text-left text-sm">
       <thead class="bg-[#0d1117]">
-        <tr class="border-b gh-divider">
+        <tr class="border-b gt-divider">
           <th class="px-4 py-3 font-semibold text-[#f0f6fc]">Status</th>
           <th class="px-4 py-3 font-semibold text-[#f0f6fc]">Title</th>
           <th class="px-4 py-3 font-semibold text-[#f0f6fc]">Description</th>
@@ -28,16 +28,16 @@
       </thead>
       <tbody>
         {#each ERROR_CODE_CATALOG as entry}
-          <tr class="border-b gh-divider hover:bg-[#0d1117]">
+          <tr class="border-b gt-divider hover:bg-[#0d1117]">
             <td class="px-4 py-3">
-              <code class="rounded border gh-divider bg-[#161b22] px-2 py-0.5 text-xs text-[#f0f6fc]">
+              <code class="rounded border gt-divider bg-[#161b22] px-2 py-0.5 text-xs text-[#f0f6fc]">
                 {entry.status}
               </code>
             </td>
             <td class="px-4 py-3 text-[#f0f6fc]">
               {entry.title}
               {#if commonHighlights.includes(entry.status)}
-                <span class="gh-common-badge ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                <span class="gt-common-badge ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                   common
                 </span>
               {/if}

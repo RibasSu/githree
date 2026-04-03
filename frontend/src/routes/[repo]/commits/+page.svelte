@@ -74,7 +74,7 @@
 
   <div class="flex flex-wrap items-center gap-2">
     <a class="btn" href={`/${data.repo}?ref=${encodeURIComponent(selectedRef)}`}>Back to repository</a>
-    <span class="text-xs gh-muted">Showing {skip + 1} - {skip + commits.length}</span>
+    <span class="text-xs gt-muted">Showing {skip + 1} - {skip + commits.length}</span>
   </div>
 
   {#if loading && commits.length === 0}

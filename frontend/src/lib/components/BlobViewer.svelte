@@ -238,10 +238,10 @@
 </script>
 
 <section class="card-surface overflow-hidden">
-  <header class="flex flex-wrap items-center justify-between gap-3 border-b gh-divider px-4 py-3">
+  <header class="flex flex-wrap items-center justify-between gap-3 border-b gt-divider px-4 py-3">
     <div>
       <h2 class="text-sm font-semibold text-[#f0f6fc]">{filePath}</h2>
-      <p class="text-xs gh-muted">
+      <p class="text-xs gt-muted">
         {blob.language} · {blob.size} bytes · {lineCount} lines
       </p>
     </div>
@@ -271,11 +271,11 @@
       {#if isImageBlob(blob) && blob.content.length > 0}
         <img
           alt={`Preview for ${filePath}`}
-          class="max-h-[28rem] w-auto rounded-md border gh-divider bg-[#0d1117]"
+          class="max-h-[28rem] w-auto rounded-md border gt-divider bg-[#0d1117]"
           src={`data:${blob.mime || 'image/png'};base64,${blob.content}`}
         />
       {:else}
-        <p class="text-sm gh-muted">
+        <p class="text-sm gt-muted">
           Binary file detected ({blob.mime || 'application/octet-stream'}). Download the raw file to inspect it.
         </p>
       {/if}
@@ -285,10 +285,10 @@
       {@html markdownHtml}
     </article>
   {:else}
-    <div class="gh-code-render grid grid-cols-[56px_1fr] overflow-x-auto bg-[#0d1117] font-mono text-xs">
-      <div aria-hidden="true" class="select-none border-r gh-divider px-3 py-4 text-right gh-muted">
+    <div class="gt-code-render grid grid-cols-[56px_1fr] overflow-x-auto bg-[#0d1117] font-mono text-xs">
+      <div aria-hidden="true" class="select-none border-r gt-divider px-3 py-4 text-right gt-muted">
         {#each lineNumbers(lineCount) as lineNo}
-          <div class="gh-code-line-number">{lineNo}</div>
+          <div class="gt-code-line-number">{lineNo}</div>
         {/each}
       </div>
       <div class="p-4 text-[#c9d1d9]">
@@ -298,6 +298,6 @@
   {/if}
 
   {#if renderError && renderMode !== 'truncated'}
-    <div class="border-t gh-divider px-4 py-2 text-xs text-[#d29922]">{renderError}</div>
+    <div class="border-t gt-divider px-4 py-2 text-xs text-[#d29922]">{renderError}</div>
   {/if}
 </section>

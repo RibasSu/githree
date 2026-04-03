@@ -224,7 +224,7 @@
 <section class="space-y-6">
   <div class="card-surface p-4">
     <h1 class="text-lg font-semibold text-[#f0f6fc]">Add a Repository</h1>
-    <p class="mt-1 text-sm gh-muted">
+    <p class="mt-1 text-sm gt-muted">
       {#if webRepoManagement}
         Paste any GitHub, GitLab, or self-hosted git URL (SSH or HTTPS).
       {:else}
@@ -259,14 +259,14 @@
     {/if}
 
     {#if !webRepoManagement}
-      <div class="mt-4 rounded-sm border gh-divider bg-[#0d1117] p-3 text-xs">
-        <p class="gh-muted">
+      <div class="mt-4 rounded-sm border gt-divider bg-[#0d1117] p-3 text-xs">
+        <p class="gt-muted">
           Repository changes must be done via command line and persisted in:
           <code class="ml-1 text-[#c9d1d9]">{commandRegistryFile}</code>
         </p>
         {#if generatedAddCommand.length > 0}
           <div class="mt-3 space-y-2">
-            <pre class="overflow-x-auto rounded-sm border gh-divider bg-[#010409] p-3 text-[#c9d1d9]">{generatedAddCommand}</pre>
+            <pre class="overflow-x-auto rounded-sm border gt-divider bg-[#010409] p-3 text-[#c9d1d9]">{generatedAddCommand}</pre>
             <div>
               <button
                 class="btn"
@@ -290,7 +290,7 @@
   {#if loading && repos.length === 0}
     <ShimmerRows rows={6} />
   {:else if filteredRepos.length === 0}
-    <div class="card-surface p-6 text-sm gh-muted">
+    <div class="card-surface p-6 text-sm gt-muted">
       {#if webRepoManagement}
         No repositories found. Add your first repository URL above.
       {:else}
@@ -299,7 +299,7 @@
     </div>
   {:else}
     <div class="card-surface overflow-hidden">
-      <div class="grid grid-cols-[minmax(220px,1fr)_minmax(200px,1fr)_auto] gap-3 border-b gh-divider px-4 py-2 text-xs font-semibold uppercase tracking-wide gh-muted">
+      <div class="grid grid-cols-[minmax(220px,1fr)_minmax(200px,1fr)_auto] gap-3 border-b gt-divider px-4 py-2 text-xs font-semibold uppercase tracking-wide gt-muted">
         <span>Repository</span>
         <span>Remote</span>
         <span class="text-right">Actions</span>

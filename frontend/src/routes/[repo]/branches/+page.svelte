@@ -104,7 +104,7 @@
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
       <h1 class="text-2xl font-semibold text-[#f0f6fc]">Branches</h1>
-      <p class="text-sm gh-muted">Browse and switch branches for this repository.</p>
+      <p class="text-sm gt-muted">Browse and switch branches for this repository.</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <a class="btn" href={`/${data.repo}?ref=${encodeURIComponent(selectedRef || 'main')}`}>Back to repository</a>
@@ -113,13 +113,13 @@
   </div>
 
   <section class="card-surface overflow-hidden">
-    <div class="border-b gh-divider bg-[#0d1117] px-4 py-3">
+    <div class="border-b gt-divider bg-[#0d1117] px-4 py-3">
       <div class="flex items-center gap-4 text-sm">
-        <span class="gh-branch-tab-active pb-2">All</span>
+        <span class="gt-branch-tab-active pb-2">All</span>
       </div>
 
-      <label class="gh-go-to-file mt-3 w-full" for="branch-search-input">
-        <Search aria-hidden="true" class="gh-muted" size={15} />
+      <label class="gt-go-to-file mt-3 w-full" for="branch-search-input">
+        <Search aria-hidden="true" class="gt-muted" size={15} />
         <input
           bind:value={search}
           autocomplete="off"
@@ -136,12 +136,12 @@
         <ShimmerRows rows={8} />
       </div>
     {:else if filteredBranches.length === 0}
-      <div class="p-4 text-sm gh-muted">No branches match your search.</div>
+      <div class="p-4 text-sm gt-muted">No branches match your search.</div>
     {:else}
       <div class="overflow-x-auto">
         <table class="w-full min-w-[780px] text-sm">
           <thead class="bg-[#161b22] text-[#8b949e]">
-            <tr class="border-b gh-divider">
+            <tr class="border-b gt-divider">
               <th class="px-4 py-2 text-left font-medium">Branch</th>
               <th class="px-4 py-2 text-left font-medium">Updated</th>
               <th class="px-4 py-2 text-left font-medium">Check status</th>
@@ -151,15 +151,15 @@
           </thead>
           <tbody>
             {#each filteredBranches as branch}
-              <tr class="border-b gh-divider hover:bg-[#161b22]">
+              <tr class="border-b gt-divider hover:bg-[#161b22]">
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-2">
-                    <GitBranch aria-hidden="true" class="gh-muted" size={14} />
+                    <GitBranch aria-hidden="true" class="gt-muted" size={14} />
                     <a class="link-accent font-medium hover:underline" href={branchHref(branch)}>
                       {branch}
                     </a>
                     {#if branch === refs?.default_branch}
-                      <span class="gh-ref-default">default</span>
+                      <span class="gt-ref-default">default</span>
                     {/if}
                   </div>
                 </td>
@@ -172,12 +172,12 @@
                       {formatRelativeTime(latestCommitByBranch[branch]?.authored_at || '')}
                     </a>
                   {:else}
-                    <span class="gh-muted">-</span>
+                    <span class="gt-muted">-</span>
                   {/if}
                 </td>
-                <td class="px-4 py-3"><span class="gh-muted">-</span></td>
-                <td class="px-4 py-3"><span class="gh-muted">- / -</span></td>
-                <td class="px-4 py-3"><span class="gh-muted">-</span></td>
+                <td class="px-4 py-3"><span class="gt-muted">-</span></td>
+                <td class="px-4 py-3"><span class="gt-muted">- / -</span></td>
+                <td class="px-4 py-3"><span class="gt-muted">-</span></td>
               </tr>
             {/each}
           </tbody>

@@ -48,7 +48,7 @@
 </a>
 
 <div class="flex min-h-screen flex-col">
-  <header class="border-b gh-divider bg-[#010409]">
+  <header class="border-b gt-divider bg-[#010409]">
     <div class="repo-shell flex items-center justify-between px-4 py-3">
       <a class="flex items-center gap-3 text-sm font-semibold text-[#f0f6fc]" href="/">
         <img alt={`${appName} logo`} class="h-5 w-5" height="20" src={logoUrl} width="20" />
@@ -70,8 +70,8 @@
     </div>
   </main>
 
-  <footer class="border-t gh-divider bg-[#010409]">
-    <div class="repo-shell px-4 py-4 text-center text-sm gh-muted">
+  <footer class="border-t gt-divider bg-[#010409]">
+    <div class="repo-shell px-4 py-4 text-center text-sm gt-muted">
       Made with 🧡 by
       <a class="link-accent hover:underline" href={siteUrl} rel="noreferrer" target="_blank">
         {appName}

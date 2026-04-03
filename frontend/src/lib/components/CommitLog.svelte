@@ -61,26 +61,26 @@
       >
         <img
           alt={commit.author_name}
-          class="h-8 w-8 rounded-full border gh-divider"
+          class="h-8 w-8 rounded-full border gt-divider"
           loading="lazy"
           src={avatarUrl(commit.author_email)}
         />
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
-            <code class="link-accent rounded-sm border gh-divider bg-[#0d1117] px-1.5 py-0.5 font-mono text-xs">
+            <code class="link-accent rounded-sm border gt-divider bg-[#0d1117] px-1.5 py-0.5 font-mono text-xs">
               {commit.short_hash}
             </code>
             <span class="truncate text-sm text-[#c9d1d9]">{commit.message_short}</span>
           </div>
-          <p class="truncate text-xs gh-muted">
+          <p class="truncate text-xs gt-muted">
             {commit.author_name} · {commit.author_email}
           </p>
         </div>
-        <time class="text-xs gh-muted">{formatRelativeTime(commit.authored_at)}</time>
+        <time class="text-xs gt-muted">{formatRelativeTime(commit.authored_at)}</time>
       </a>
     {/each}
     {#if filtered.length === 0}
-      <p class="px-4 py-6 text-sm gh-muted">No commits match your filter.</p>
+      <p class="px-4 py-6 text-sm gt-muted">No commits match your filter.</p>
     {/if}
   </div>
 </section>

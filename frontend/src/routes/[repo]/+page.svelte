@@ -452,10 +452,10 @@
     <ShimmerRows rows={6} />
   </div>
 {:else if repo === null}
-  <div class="card-surface p-6 text-sm gh-muted">Repository "{data.repo}" was not found.</div>
+  <div class="card-surface p-6 text-sm gt-muted">Repository "{data.repo}" was not found.</div>
 {:else}
   <section class="space-y-4">
-    <header class="flex flex-wrap items-center justify-between gap-3 border-b gh-divider pb-3">
+    <header class="flex flex-wrap items-center justify-between gap-3 border-b gt-divider pb-3">
       <div>
         <h1 class="flex items-center gap-2 text-2xl font-semibold text-[#f0f6fc]">
           {#if isGithubRepo}
@@ -468,7 +468,7 @@
 
           {#if remoteCoordinates.namespace.length > 0}
             <span class="text-[#8b949e]">{remoteCoordinates.namespace}</span>
-            <span class="gh-muted">/</span>
+            <span class="gt-muted">/</span>
           {/if}
           <span>{remoteCoordinates.repositoryName}</span>
         </h1>
@@ -486,10 +486,10 @@
     <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
       <div class="space-y-6">
         <div class="card-surface overflow-visible">
-          <div class="flex flex-wrap items-center justify-between gap-2 border-b gh-divider px-3 py-2">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b gt-divider px-3 py-2">
             <div class="flex flex-wrap items-center gap-3">
               <BranchSelector compact onSelect={changeRef} refs={refs} repoName={data.repo} selected={selectedRef} />
-              <span class="gh-toolbar-stat">
+              <span class="gt-toolbar-stat">
                 <GitBranch size={14} />
                 {#if (refs?.branches.length ?? 0) === 1}
                   1 Branch
@@ -497,7 +497,7 @@
                   {(refs?.branches.length ?? 0).toLocaleString()} Branches
                 {/if}
               </span>
-              <span class="gh-toolbar-stat">
+              <span class="gt-toolbar-stat">
                 <Tag size={14} />
                 {#if (refs?.tags.length ?? 0) === 1}
                   1 Tag
@@ -509,8 +509,8 @@
 
             <div class="flex flex-wrap items-center gap-2">
               <div class="relative">
-                <form class="gh-go-to-file" onsubmit={submitGoToFile}>
-                  <Search class="gh-muted" size={15} />
+                <form class="gt-go-to-file" onsubmit={submitGoToFile}>
+                  <Search class="gt-muted" size={15} />
                   <input
                     bind:value={goToFilePath}
                     autocomplete="off"
@@ -530,24 +530,24 @@
                 </form>
 
                 {#if showFileSearchDropdown}
-                  <div class="gh-go-to-file-menu">
+                  <div class="gt-go-to-file-menu">
                     {#if fileSearchLoading && fileSearchResults.length === 0}
-                      <div class="gh-go-to-file-empty">Indexing repository files...</div>
+                      <div class="gt-go-to-file-empty">Indexing repository files...</div>
                     {:else if fileSearchResults.length === 0}
-                      <div class="gh-go-to-file-empty">No matching files or folders.</div>
+                      <div class="gt-go-to-file-empty">No matching files or folders.</div>
                     {:else}
-                      <ul class="gh-go-to-file-items">
+                      <ul class="gt-go-to-file-items">
                         {#each fileSearchResults as result, index (result.path)}
                           <li>
                             <button
-                              class={`gh-go-to-file-item ${index === fileSearchActiveIndex ? 'active' : ''}`}
+                              class={`gt-go-to-file-item ${index === fileSearchActiveIndex ? 'active' : ''}`}
                               onclick={() => navigateToSearchEntry(result)}
                               type="button"
                             >
                               {#if result.entryType === 'tree'}
-                                <Folder aria-hidden="true" class="gh-muted" size={14} />
+                                <Folder aria-hidden="true" class="gt-muted" size={14} />
                               {:else}
-                                <FileText aria-hidden="true" class="gh-muted" size={14} />
+                                <FileText aria-hidden="true" class="gt-muted" size={14} />
                               {/if}
                               <span class="truncate">{result.path}</span>
                             </button>
@@ -574,10 +574,10 @@
                 </button>
 
                 {#if codeMenuOpen}
-                  <div class="gh-code-menu">
-                    <div class="flex items-center gap-1 border-b gh-divider px-2">
+                  <div class="gt-code-menu">
+                    <div class="flex items-center gap-1 border-b gt-divider px-2">
                       <button
-                        class={`gh-code-menu-tab ${cloneTab === 'https' ? 'active' : ''}`}
+                        class={`gt-code-menu-tab ${cloneTab === 'https' ? 'active' : ''}`}
                         onclick={() => {
                           cloneTab = 'https';
                         }}
@@ -586,7 +586,7 @@
                         HTTPS
                       </button>
                       <button
-                        class={`gh-code-menu-tab ${cloneTab === 'ssh' ? 'active' : ''}`}
+                        class={`gt-code-menu-tab ${cloneTab === 'ssh' ? 'active' : ''}`}
                         onclick={() => {
                           cloneTab = 'ssh';
                         }}
@@ -596,7 +596,7 @@
                       </button>
                       {#if isGithubRepo}
                         <button
-                          class={`gh-code-menu-tab ${cloneTab === 'cli' ? 'active' : ''}`}
+                          class={`gt-code-menu-tab ${cloneTab === 'cli' ? 'active' : ''}`}
                           onclick={() => {
                             cloneTab = 'cli';
                           }}
@@ -608,9 +608,9 @@
                     </div>
 
                     <div class="space-y-2 p-3">
-                      <p class="text-xs font-semibold uppercase tracking-wide gh-muted">Clone</p>
-                      <div class="flex items-center gap-2 rounded-md border gh-divider bg-[#161b22] p-2">
-                        <code class="gh-clone-command" title={activeCloneCommand}>{activeCloneCommand}</code>
+                      <p class="text-xs font-semibold uppercase tracking-wide gt-muted">Clone</p>
+                      <div class="flex items-center gap-2 rounded-md border gt-divider bg-[#161b22] p-2">
+                        <code class="gt-clone-command" title={activeCloneCommand}>{activeCloneCommand}</code>
                         <button
                           class="btn"
                           onclick={() => copyToClipboard(activeCloneCommand, 'Clone command copied.')}
@@ -621,7 +621,7 @@
                       </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2 border-t gh-divider p-3">
+                    <div class="grid grid-cols-2 gap-2 border-t gt-divider p-3">
                       <a class="btn justify-center" href={archiveZipUrl}>Download ZIP</a>
                       <a class="btn justify-center" href={archiveTarUrl}>Download tar.gz</a>
                     </div>
@@ -632,19 +632,19 @@
           </div>
 
           {#if recentCommits.length > 0}
-            <div class="border-t gh-divider bg-[#0d1117] px-4 py-2 text-sm">
+            <div class="border-t gt-divider bg-[#0d1117] px-4 py-2 text-sm">
               <span class="font-semibold text-[#f0f6fc]">{recentCommits[0].author_name}</span>
-              <span class="mx-2 gh-muted">{recentCommits[0].message_short}</span>
-              <span class="gh-muted">· {formatDateTime(recentCommits[0].authored_at)}</span>
+              <span class="mx-2 gt-muted">{recentCommits[0].message_short}</span>
+              <span class="gt-muted">· {formatDateTime(recentCommits[0].authored_at)}</span>
             </div>
           {/if}
           <FileTree entries={tree} refName={selectedRef} repo={data.repo} />
         </div>
 
         <section class="card-surface overflow-hidden">
-          <div class="gh-doc-tabs">
+          <div class="gt-doc-tabs">
             <a
-              class="gh-doc-tab active"
+              class="gt-doc-tab active"
               href={`/${data.repo}?ref=${encodeURIComponent(selectedRef)}`}
             >
               <BookOpen size={15} />
@@ -652,7 +652,7 @@
             </a>
             {#each filteredDocTabs as entry}
               <a
-                class="gh-doc-tab"
+                class="gt-doc-tab"
                 href={`/${data.repo}/blob/${encodeRepoPath(entry.path)}?ref=${encodeURIComponent(selectedRef)}`}
               >
                 {#if entry.name.toLowerCase() === 'security.md'}
@@ -674,7 +674,7 @@
               {@html readmeHtml}
             </article>
           {:else}
-            <div class="p-5 text-sm gh-muted">No README found for this ref.</div>
+            <div class="p-5 text-sm gt-muted">No README found for this ref.</div>
           {/if}
         </section>
       </div>
@@ -685,7 +685,7 @@
           {#if repo.description}
             <p class="mt-2 text-sm text-[#c9d1d9]">{repo.description}</p>
           {:else}
-            <p class="mt-2 text-sm gh-muted">No description provided.</p>
+            <p class="mt-2 text-sm gt-muted">No description provided.</p>
           {/if}
           <a class="mt-3 inline-flex text-sm link-accent hover:underline" href={repo.url} target="_blank">
             Open remote repository
@@ -695,17 +695,17 @@
         <div class="card-surface p-4">
           <h3 class="text-sm font-semibold text-[#f0f6fc]">Repository Stats</h3>
           <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <dt class="gh-muted">Branches</dt>
+            <dt class="gt-muted">Branches</dt>
             <dd class="text-right">{refs?.branches.length ?? 0}</dd>
-            <dt class="gh-muted">Tags</dt>
+            <dt class="gt-muted">Tags</dt>
             <dd class="text-right">{refs?.tags.length ?? 0}</dd>
-            <dt class="gh-muted">Size</dt>
+            <dt class="gt-muted">Size</dt>
             <dd class="text-right">{repo.size_kb} KB</dd>
-            <dt class="gh-muted">Loaded commits</dt>
+            <dt class="gt-muted">Loaded commits</dt>
             <dd class="text-right">{recentCommits.length}</dd>
           </dl>
           {#if repo.last_fetched}
-            <p class="mt-3 text-xs gh-muted">Last fetched: {formatDateTime(repo.last_fetched)}</p>
+            <p class="mt-3 text-xs gt-muted">Last fetched: {formatDateTime(repo.last_fetched)}</p>
           {/if}
         </div>
       </aside>

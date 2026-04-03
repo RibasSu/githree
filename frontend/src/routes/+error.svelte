@@ -25,7 +25,7 @@
 </script>
 
 <section class="card-surface mx-auto max-w-3xl overflow-hidden">
-  <header class="border-b gh-divider bg-[#0d1117] px-6 py-5">
+  <header class="border-b gt-divider bg-[#0d1117] px-6 py-5">
     <p class="text-xs font-semibold uppercase tracking-wider text-[#8b949e]">Request error</p>
     <h1 class="mt-2 text-2xl font-semibold text-[#f0f6fc]">
       {status} · {title}
@@ -34,13 +34,13 @@
   </header>
 
   <div class="space-y-5 px-6 py-5">
-    <div class="rounded-md border gh-divider bg-[#0d1117] p-4">
+    <div class="rounded-md border gt-divider bg-[#0d1117] p-4">
       <h2 class="text-sm font-semibold text-[#f0f6fc]">What to do next</h2>
       <p class="mt-2 text-sm text-[#c9d1d9]">{guidance}</p>
     </div>
 
     {#if message.length > 0}
-      <div class="rounded-md border gh-divider bg-[#0d1117] p-4">
+      <div class="rounded-md border gt-divider bg-[#0d1117] p-4">
         <h2 class="text-sm font-semibold text-[#f0f6fc]">Error details</h2>
         <code class="mt-2 block whitespace-pre-wrap text-xs text-[#c9d1d9]">{message}</code>
       </div>

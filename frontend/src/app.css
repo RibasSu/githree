@@ -4,25 +4,25 @@
 
 :root {
   color-scheme: dark;
-  --gh-bg: #0d1117;
-  --gh-canvas: #0d1117;
-  --gh-canvas-subtle: #161b22;
-  --gh-canvas-inset: #0d1117;
-  --gh-border: #30363d;
-  --gh-border-muted: #21262d;
-  --gh-fg: #c9d1d9;
-  --gh-fg-muted: #8b949e;
-  --gh-accent: #58a6ff;
-  --gh-primary: #f05032;
-  --gh-success: #f05032;
-  --gh-danger: #da3633;
-  --gh-code: #161b22;
+  --gt-bg: #0d1117;
+  --gt-canvas: #0d1117;
+  --gt-canvas-subtle: #161b22;
+  --gt-canvas-inset: #0d1117;
+  --gt-border: #30363d;
+  --gt-border-muted: #21262d;
+  --gt-fg: #c9d1d9;
+  --gt-fg-muted: #8b949e;
+  --gt-accent: #58a6ff;
+  --gt-primary: #f05032;
+  --gt-success: #f05032;
+  --gt-danger: #da3633;
+  --gt-code: #161b22;
 }
 
 body {
   margin: 0;
-  background: var(--gh-bg);
-  color: var(--gh-fg);
+  background: var(--gt-bg);
+  color: var(--gt-fg);
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji';
@@ -34,100 +34,100 @@ a {
 }
 
 .card-surface {
-  border: 1px solid var(--gh-border);
-  background: var(--gh-canvas-subtle);
+  border: 1px solid var(--gt-border);
+  background: var(--gt-canvas-subtle);
   border-radius: 6px;
 }
 
 .btn {
   @apply inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition;
-  border: 1px solid var(--gh-border);
-  background: var(--gh-border-muted);
-  color: var(--gh-fg);
+  border: 1px solid var(--gt-border);
+  background: var(--gt-border-muted);
+  color: var(--gt-fg);
 }
 
 .btn:hover {
-  background: color-mix(in srgb, var(--gh-border-muted) 68%, #ffffff 12%);
+  background: color-mix(in srgb, var(--gt-border-muted) 68%, #ffffff 12%);
 }
 
 .btn-primary {
-  border-color: color-mix(in srgb, var(--gh-success) 68%, black 32%);
-  background: var(--gh-success);
+  border-color: color-mix(in srgb, var(--gt-success) 68%, black 32%);
+  background: var(--gt-success);
   color: #ffffff;
 }
 
 .btn-primary:hover {
-  background: color-mix(in srgb, var(--gh-success) 86%, #ffffff 14%);
+  background: color-mix(in srgb, var(--gt-success) 86%, #ffffff 14%);
 }
 
 .btn-danger {
-  border-color: color-mix(in srgb, var(--gh-danger) 68%, black 32%);
-  background: color-mix(in srgb, var(--gh-danger) 26%, transparent 74%);
+  border-color: color-mix(in srgb, var(--gt-danger) 68%, black 32%);
+  background: color-mix(in srgb, var(--gt-danger) 26%, transparent 74%);
   color: #ffdcd7;
 }
 
 .btn-code {
-  border-color: color-mix(in srgb, var(--gh-accent) 62%, black 38%);
-  background: var(--gh-accent);
+  border-color: color-mix(in srgb, var(--gt-accent) 62%, black 38%);
+  background: var(--gt-accent);
   color: #ffffff;
 }
 
 .btn-code:hover {
-  background: color-mix(in srgb, var(--gh-accent) 85%, #ffffff 15%);
+  background: color-mix(in srgb, var(--gt-accent) 85%, #ffffff 15%);
 }
 
 .input {
   @apply w-full rounded-md px-3 py-1.5 text-sm focus:outline-none;
-  border: 1px solid var(--gh-border);
-  background: var(--gh-canvas);
-  color: var(--gh-fg);
+  border: 1px solid var(--gt-border);
+  background: var(--gt-canvas);
+  color: var(--gt-fg);
 }
 
 .input::placeholder {
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
 }
 
 .input:focus {
-  border-color: var(--gh-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 22%, transparent 78%);
+  border-color: var(--gt-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gt-accent) 22%, transparent 78%);
 }
 
 .link-accent {
-  color: var(--gh-accent);
+  color: var(--gt-accent);
 }
 
 .link-muted {
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
 }
 
 .link-muted:hover {
-  color: var(--gh-fg);
+  color: var(--gt-fg);
 }
 
-.gh-crumb-link {
-  color: var(--gh-fg-muted);
+.gt-crumb-link {
+  color: var(--gt-fg-muted);
 }
 
-.gh-crumb-link:hover {
-  color: var(--gh-accent);
+.gt-crumb-link:hover {
+  color: var(--gt-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.gh-focus-accent:focus-visible {
+.gt-focus-accent:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 28%, transparent 72%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gt-accent) 28%, transparent 72%);
 }
 
-.gh-branch-tab-active {
-  border-bottom: 2px solid var(--gh-primary);
+.gt-branch-tab-active {
+  border-bottom: 2px solid var(--gt-primary);
   color: #f0f6fc;
   font-weight: 600;
 }
 
-.gh-common-badge {
-  background: color-mix(in srgb, var(--gh-accent) 22%, transparent 78%);
-  color: var(--gh-accent);
+.gt-common-badge {
+  background: color-mix(in srgb, var(--gt-accent) 22%, transparent 78%);
+  color: var(--gt-accent);
 }
 
 .repo-shell {
@@ -135,7 +135,7 @@ a {
   margin-inline: auto;
 }
 
-.gh-ref-switcher {
+.gt-ref-switcher {
   position: relative;
   display: inline-flex;
   min-width: 160px;
@@ -143,24 +143,24 @@ a {
   gap: 0.35rem;
 }
 
-.gh-ref-switcher.compact {
+.gt-ref-switcher.compact {
   min-width: 0;
   gap: 0;
 }
 
-.gh-ref-switcher-label {
+.gt-ref-switcher-label {
   font-size: 0.75rem;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
 }
 
-.gh-ref-switcher-trigger {
+.gt-ref-switcher-trigger {
   display: inline-flex;
   min-height: 32px;
   min-width: 132px;
   align-items: center;
   justify-content: flex-start;
   gap: 0.45rem;
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gt-border);
   border-radius: 6px;
   background: #21262d;
   color: #f0f6fc;
@@ -169,52 +169,52 @@ a {
   font-weight: 500;
 }
 
-.gh-ref-switcher-trigger:hover {
+.gt-ref-switcher-trigger:hover {
   background: color-mix(in srgb, #21262d 86%, #ffffff 14%);
 }
 
-.gh-ref-switcher-trigger:focus-visible {
+.gt-ref-switcher-trigger:focus-visible {
   outline: none;
-  border-color: var(--gh-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 24%, transparent 76%);
+  border-color: var(--gt-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gt-accent) 24%, transparent 76%);
 }
 
-.gh-ref-chevron {
+.gt-ref-chevron {
   margin-left: auto;
   transition: transform 0.15s ease-out;
 }
 
-.gh-ref-chevron.open {
+.gt-ref-chevron.open {
   transform: rotate(180deg);
 }
 
-.gh-ref-menu {
+.gt-ref-menu {
   position: absolute;
   left: 0;
   top: calc(100% + 8px);
   z-index: 70;
   width: min(94vw, 330px);
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gt-border);
   border-radius: 10px;
   background: #0d1117;
   box-shadow: 0 16px 36px rgba(1, 4, 9, 0.56);
   overflow: hidden;
 }
 
-.gh-ref-menu-header {
+.gt-ref-menu-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--gh-border);
+  border-bottom: 1px solid var(--gt-border);
   padding: 0.72rem 0.85rem;
   font-size: 0.95rem;
   color: #f0f6fc;
 }
 
-.gh-ref-close {
+.gt-ref-close {
   border: none;
   background: transparent;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -223,23 +223,23 @@ a {
   border-radius: 6px;
 }
 
-.gh-ref-close:hover {
+.gt-ref-close:hover {
   color: #f0f6fc;
-  background: color-mix(in srgb, var(--gh-border-muted) 90%, #ffffff 10%);
+  background: color-mix(in srgb, var(--gt-border-muted) 90%, #ffffff 10%);
 }
 
-.gh-ref-search {
+.gt-ref-search {
   margin: 0.75rem 0.75rem 0.65rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border: 1px solid var(--gh-accent);
+  border: 1px solid var(--gt-accent);
   border-radius: 8px;
   padding: 0 0.62rem;
   background: #0d1117;
 }
 
-.gh-ref-search input {
+.gt-ref-search input {
   width: 100%;
   min-height: 32px;
   border: none;
@@ -249,39 +249,39 @@ a {
   font-size: 0.92rem;
 }
 
-.gh-ref-search input::placeholder {
-  color: var(--gh-fg-muted);
+.gt-ref-search input::placeholder {
+  color: var(--gt-fg-muted);
 }
 
-.gh-ref-tabs {
+.gt-ref-tabs {
   display: flex;
-  border-bottom: 1px solid var(--gh-border);
+  border-bottom: 1px solid var(--gt-border);
   padding-inline: 0.5rem;
 }
 
-.gh-ref-tab {
+.gt-ref-tab {
   border: 1px solid transparent;
   border-bottom: none;
   border-radius: 6px 6px 0 0;
   background: #0d1117;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
   padding: 0.45rem 0.75rem;
   font-size: 0.88rem;
   text-align: left;
 }
 
-.gh-ref-tab:hover {
+.gt-ref-tab:hover {
   color: #f0f6fc;
 }
 
-.gh-ref-tab.active {
+.gt-ref-tab.active {
   color: #f0f6fc;
-  border-color: var(--gh-border);
+  border-color: var(--gt-border);
   background: #161b22;
   box-shadow: none;
 }
 
-.gh-ref-items {
+.gt-ref-items {
   margin: 0;
   padding: 0 0 0.15rem;
   list-style: none;
@@ -289,19 +289,19 @@ a {
   overflow: auto;
 }
 
-.gh-ref-empty {
+.gt-ref-empty {
   padding: 0.75rem 0.85rem;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
   font-size: 0.85rem;
 }
 
-.gh-ref-item {
+.gt-ref-item {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   border: none;
-  border-bottom: 1px solid var(--gh-border-muted);
+  border-bottom: 1px solid var(--gt-border-muted);
   background: transparent;
   color: #f0f6fc;
   padding: 0.6rem 0.85rem;
@@ -309,15 +309,15 @@ a {
   text-align: left;
 }
 
-.gh-ref-item:hover {
+.gt-ref-item:hover {
   background: #161b22;
 }
 
-.gh-ref-item.active {
+.gt-ref-item.active {
   background: transparent;
 }
 
-.gh-ref-check {
+.gt-ref-check {
   display: inline-flex;
   width: 16px;
   align-items: center;
@@ -325,82 +325,82 @@ a {
   color: #f0f6fc;
 }
 
-.gh-ref-default {
+.gt-ref-default {
   margin-left: auto;
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gt-border);
   border-radius: 999px;
   padding: 0.05rem 0.42rem;
   font-size: 0.72rem;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
 }
 
-.gh-ref-footer {
-  border-top: 1px solid var(--gh-border);
+.gt-ref-footer {
+  border-top: 1px solid var(--gt-border);
   padding: 0.68rem 0.85rem;
   font-size: 0.9rem;
   color: #f0f6fc;
   background: #0d1117;
 }
 
-.gh-ref-footer-link {
+.gt-ref-footer-link {
   display: block;
   color: #f0f6fc;
 }
 
-.gh-ref-footer-link:hover {
+.gt-ref-footer-link:hover {
   text-decoration: underline;
 }
 
-.gh-go-to-file {
+.gt-go-to-file {
   display: inline-flex;
   min-width: min(100%, 270px);
   align-items: center;
   gap: 0.45rem;
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gt-border);
   border-radius: 6px;
   background: #0d1117;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
   padding: 0 0.65rem;
 }
 
-.gh-go-to-file input {
+.gt-go-to-file input {
   border: none;
   outline: none;
   background: transparent;
-  color: var(--gh-fg);
+  color: var(--gt-fg);
   min-height: 32px;
   width: 100%;
 }
 
-.gh-go-to-file input::placeholder {
-  color: var(--gh-fg-muted);
+.gt-go-to-file input::placeholder {
+  color: var(--gt-fg-muted);
 }
 
-.gh-go-to-file:focus-within {
-  border-color: var(--gh-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 20%, transparent 80%);
+.gt-go-to-file:focus-within {
+  border-color: var(--gt-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gt-accent) 20%, transparent 80%);
 }
 
-.gh-go-to-file-menu {
+.gt-go-to-file-menu {
   position: absolute;
   left: 0;
   top: calc(100% + 6px);
   z-index: 65;
   width: min(92vw, 640px);
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gt-border);
   border-radius: 10px;
   background: #0d1117;
   box-shadow: 0 12px 30px rgba(1, 4, 9, 0.56);
   overflow: hidden;
 }
 
-.gh-go-to-file-empty {
+.gt-go-to-file-empty {
   padding: 0.75rem 0.9rem;
   font-size: 0.86rem;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
 }
 
-.gh-go-to-file-items {
+.gt-go-to-file-items {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -408,29 +408,29 @@ a {
   overflow: auto;
 }
 
-.gh-go-to-file-item {
+.gt-go-to-file-item {
   width: 100%;
   border: none;
-  border-bottom: 1px solid var(--gh-border-muted);
+  border-bottom: 1px solid var(--gt-border-muted);
   background: transparent;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.55rem 0.75rem;
-  color: var(--gh-fg);
+  color: var(--gt-fg);
   font-size: 0.9rem;
   text-align: left;
 }
 
-.gh-go-to-file-item:hover {
+.gt-go-to-file-item:hover {
   background: #161b22;
 }
 
-.gh-go-to-file-item.active {
-  background: color-mix(in srgb, var(--gh-accent) 16%, transparent 84%);
+.gt-go-to-file-item.active {
+  background: color-mix(in srgb, var(--gt-accent) 16%, transparent 84%);
 }
 
-.gh-toolbar-stat {
+.gt-toolbar-stat {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -438,32 +438,32 @@ a {
   font-size: 0.95rem;
 }
 
-.gh-code-menu {
+.gt-code-menu {
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
   z-index: 40;
   width: min(96vw, 360px);
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gt-border);
   border-radius: 8px;
   background: #0d1117;
   box-shadow: 0 14px 30px rgba(1, 4, 9, 0.48);
 }
 
-.gh-code-menu-tab {
+.gt-code-menu-tab {
   border: none;
   background: transparent;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
   padding: 0.58rem 0.8rem;
   font-size: 0.85rem;
 }
 
-.gh-code-menu-tab.active {
+.gt-code-menu-tab.active {
   color: #f0f6fc;
-  border-bottom: 2px solid var(--gh-primary);
+  border-bottom: 2px solid var(--gt-primary);
 }
 
-.gh-clone-command {
+.gt-clone-command {
   min-width: 0;
   flex: 1;
   overflow: hidden;
@@ -473,17 +473,17 @@ a {
   color: #c9d1d9;
 }
 
-.gh-doc-tabs {
+.gt-doc-tabs {
   display: flex;
   align-items: center;
   gap: 0.15rem;
   overflow-x: auto;
-  border-bottom: 1px solid var(--gh-border);
+  border-bottom: 1px solid var(--gt-border);
   padding-inline: 0.65rem;
   background: #0d1117;
 }
 
-.gh-doc-tab {
+.gt-doc-tab {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
@@ -491,20 +491,20 @@ a {
   border-bottom: 2px solid transparent;
   padding: 0.7rem 0.65rem;
   font-size: 0.9rem;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
 }
 
-.gh-doc-tab:hover {
-  color: var(--gh-fg);
+.gt-doc-tab:hover {
+  color: var(--gt-fg);
 }
 
-.gh-doc-tab.active {
+.gt-doc-tab.active {
   color: #f0f6fc;
-  border-bottom-color: var(--gh-primary);
+  border-bottom-color: var(--gt-primary);
 }
 
 .github-markdown {
-  color: var(--gh-fg);
+  color: var(--gt-fg);
   font-size: 1rem;
   line-height: 1.5;
   word-wrap: break-word;
@@ -534,13 +534,13 @@ a {
 .github-markdown h1 {
   font-size: 2em;
   padding-bottom: 0.35em;
-  border-bottom: 1px solid var(--gh-border);
+  border-bottom: 1px solid var(--gt-border);
 }
 
 .github-markdown h2 {
   font-size: 1.5em;
   padding-bottom: 0.35em;
-  border-bottom: 1px solid var(--gh-border);
+  border-bottom: 1px solid var(--gt-border);
 }
 
 .github-markdown h3 {
@@ -557,7 +557,7 @@ a {
 
 .github-markdown h6 {
   font-size: 0.85em;
-  color: var(--gh-fg-muted);
+  color: var(--gt-fg-muted);
 }
 
 .github-markdown p,
@@ -572,7 +572,7 @@ a {
 }
 
 .github-markdown a {
-  color: var(--gh-accent);
+  color: var(--gt-accent);
   text-decoration: none;
 }
 
@@ -582,7 +582,7 @@ a {
 
 .github-markdown pre {
   overflow-x: auto;
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gt-border);
   border-radius: 6px;
   background: #0d1117;
   padding: 1rem;
@@ -592,7 +592,7 @@ a {
 
 .github-markdown code {
   font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, 'Liberation Mono', monospace;
-  background: color-mix(in srgb, var(--gh-border-muted) 88%, black 12%);
+  background: color-mix(in srgb, var(--gt-border-muted) 88%, black 12%);
   border-radius: 6px;
   padding: 0.15rem 0.35rem;
   font-size: 0.85em;
@@ -625,20 +625,20 @@ a {
 
 .github-markdown blockquote {
   margin-inline: 0;
-  border-left: 0.25em solid var(--gh-border);
-  color: var(--gh-fg-muted);
+  border-left: 0.25em solid var(--gt-border);
+  color: var(--gt-fg-muted);
   padding: 0 1em;
 }
 
 .github-markdown hr {
   border: 0;
-  border-top: 1px solid var(--gh-border);
+  border-top: 1px solid var(--gt-border);
   margin: 1.5rem 0;
 }
 
 .github-markdown table th,
 .github-markdown table td {
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gt-border);
   padding: 0.38rem 0.72rem;
 }
 
@@ -654,7 +654,7 @@ a {
 .github-markdown .shiki {
   margin: 0;
   border-radius: 6px;
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gt-border);
   background: #0d1117 !important;
 }
 
@@ -663,36 +663,36 @@ a {
   padding: 0;
 }
 
-.gh-code-render .shiki {
-  --gh-code-line-height: 1.35rem;
+.gt-code-render .shiki {
+  --gt-code-line-height: 1.35rem;
   margin: 0;
   background: transparent !important;
   color: #f0f6fc !important;
-  line-height: var(--gh-code-line-height) !important;
+  line-height: var(--gt-code-line-height) !important;
 }
 
-.gh-code-render .shiki code {
+.gt-code-render .shiki code {
   color: inherit !important;
-  line-height: var(--gh-code-line-height) !important;
+  line-height: var(--gt-code-line-height) !important;
 }
 
-.gh-code-render .shiki .line {
-  line-height: var(--gh-code-line-height) !important;
+.gt-code-render .shiki .line {
+  line-height: var(--gt-code-line-height) !important;
 }
 
-.gh-code-render .gh-code-line-number {
+.gt-code-render .gt-code-line-number {
   line-height: 1.35rem;
 }
 
-.gh-muted {
-  color: var(--gh-fg-muted);
+.gt-muted {
+  color: var(--gt-fg-muted);
 }
 
-.gh-divider {
-  border-color: var(--gh-border);
+.gt-divider {
+  border-color: var(--gt-border);
 }
 
-@keyframes gh-shimmer {
+@keyframes gt-shimmer {
   0% {
     background-position: -220% 0;
   }
@@ -701,15 +701,15 @@ a {
   }
 }
 
-.gh-shimmer {
+.gt-shimmer {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--gh-canvas-subtle) 88%, black 12%) 20%,
-    color-mix(in srgb, var(--gh-border-muted) 70%, white 30%) 50%,
-    color-mix(in srgb, var(--gh-canvas-subtle) 88%, black 12%) 80%
+    color-mix(in srgb, var(--gt-canvas-subtle) 88%, black 12%) 20%,
+    color-mix(in srgb, var(--gt-border-muted) 70%, white 30%) 50%,
+    color-mix(in srgb, var(--gt-canvas-subtle) 88%, black 12%) 80%
   );
   background-size: 220% 100%;
-  animation: gh-shimmer 1.2s linear infinite !important;
+  animation: gt-shimmer 1.2s linear infinite !important;
   animation-play-state: running !important;
   will-change: background-position;
   transform: translateZ(0);
