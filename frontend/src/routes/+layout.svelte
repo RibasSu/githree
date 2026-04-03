@@ -26,8 +26,10 @@
     </div>
   </header>
 
-  <main class="repo-shell flex-1 px-4 py-6" id="main-content">
-    {@render children?.()}
+  <main class="w-full flex-1" id="main-content">
+    <div class="repo-shell px-4 py-6">
+      {@render children?.()}
+    </div>
   </main>
 
   <footer class="border-t gh-divider bg-[#010409]">

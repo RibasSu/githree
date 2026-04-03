@@ -86,9 +86,9 @@
 
     const decodedContent = decodeText(snapshot.content, snapshot.encoding);
     const highlightedContent = normalizeCodeDisplay(decodedContent);
-    next.plainContent = highlightedContent;
+    next.plainContent = decodedContent;
 
-    if (decodedContent.split('\n').length > MAX_RENDERABLE_LINES) {
+    if (highlightedContent.split('\n').length > MAX_RENDERABLE_LINES) {
       next.renderMode = 'truncated';
       next.renderError = `File has more than ${MAX_RENDERABLE_LINES} lines. Download the raw file to inspect it.`;
       applyRenderPayload(next, renderJob);
@@ -106,13 +106,13 @@
         const sanitized = DOMPurify.sanitize(highlighted);
         next.markdownHtml = sanitized.trim().length > 0
           ? sanitized
-          : `<pre>${escapeHtml(decodedContent)}</pre>`;
-        if (sanitized.trim().length === 0 && decodedContent.trim().length > 0) {
+          : `<pre>${escapeHtml(highlightedContent)}</pre>`;
+        if (sanitized.trim().length === 0 && highlightedContent.trim().length > 0) {
           next.renderError = 'Markdown renderer returned empty output; showing plain text fallback.';
         }
       } catch {
         next.renderError = 'Falling back to plain text because markdown rendering failed.';
-        next.markdownHtml = `<pre>${escapeHtml(decodedContent)}</pre>`;
+        next.markdownHtml = `<pre>${escapeHtml(highlightedContent)}</pre>`;
       }
       applyRenderPayload(next, renderJob);
       return;
@@ -163,7 +163,11 @@
 
   function normalizeCodeDisplay(value: string): string {
     const normalized = value.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-    return normalized.replace(/\n+$/u, '');
+    const lines = normalized.split('\n');
+    while (lines.length > 0 && lines[lines.length - 1].trim().length === 0) {
+      lines.pop();
+    }
+    return lines.join('\n');
   }
 
   function escapeHtml(value: string): string {

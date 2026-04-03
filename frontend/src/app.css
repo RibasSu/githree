@@ -635,7 +635,7 @@ a {
 .gh-code-render .shiki {
   margin: 0;
   background: transparent !important;
-  color: #c9d1d9 !important;
+  color: #f0f6fc !important;
 }
 
 .gh-code-render .shiki code {
