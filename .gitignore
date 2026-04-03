@@ -43,6 +43,7 @@ pnpm-debug.log*
 backend/data
 !/data/.gitkeep
 !/data/.gitignore
+.run
 
 # ----- Generic logs / temp -----
 *.log
