@@ -18,6 +18,7 @@
       </a>
       <nav aria-label="Global" class="hidden items-center gap-4 text-sm md:flex">
         <a class="link-muted hover:text-[#c9d1d9]" href="/">Repositories</a>
+        <a class="link-muted hover:text-[#c9d1d9]" href="/errors">Errors</a>
         <a class="link-muted hover:text-[#c9d1d9]" href="https://githree.org" rel="noreferrer" target="_blank">
           githree.org
         </a>
@@ -28,6 +29,15 @@
   <main class="repo-shell px-4 py-6" id="main-content">
     {@render children?.()}
   </main>
+
+  <footer class="mt-8 border-t gh-divider bg-[#010409]">
+    <div class="repo-shell px-4 py-4 text-center text-sm gh-muted">
+      Made with 🧡 by
+      <a class="link-accent hover:underline" href="https://githree.org/" rel="noreferrer" target="_blank">
+        Githree
+      </a>
+    </div>
+  </footer>
 </div>
 
 <ToastStack />
