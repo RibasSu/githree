@@ -21,6 +21,7 @@ Thumbs.db
 /target/
 /backend/target/
 **/*.rs.bk
+coverage
 
 # ----- Frontend (SvelteKit / Vite / Node) -----
 /frontend/node_modules/

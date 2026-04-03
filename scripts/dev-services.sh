@@ -15,11 +15,12 @@ FRONTEND_PID_FILE="$RUN_DIR/frontend.pid"
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/dev-services.sh [start|stop|restart|status]
+Usage: ./scripts/dev-services.sh [start|stop|restart|status|test|coverage]
 
 Environment overrides:
   BACKEND_PORT   Backend listen port (default: 3001)
   FRONTEND_PORT  Frontend listen port (default: 5173)
+  COVERAGE_DIR   Coverage output directory (default: ./coverage)
 EOF
 }
 
@@ -183,6 +184,63 @@ status_services() {
   echo "Frontend (${FRONTEND_PORT}): ${frontend_status}"
 }
 
+run_tests() {
+  echo "Running backend tests..."
+  (
+    cd "$BACKEND_DIR"
+    cargo test --all-targets --all-features
+  )
+
+  echo "Running frontend checks..."
+  (
+    cd "$FRONTEND_DIR"
+    bun run check
+    bun run build
+  )
+
+  echo "All tests/checks passed."
+}
+
+run_coverage() {
+  local coverage_dir="${COVERAGE_DIR:-$ROOT_DIR/coverage}"
+  local html_dir="$coverage_dir/backend-html"
+  local html_index="$html_dir/html/index.html"
+  local lcov_file="$coverage_dir/backend.lcov"
+
+  if ! command -v cargo >/dev/null 2>&1; then
+    echo "Missing dependency: cargo" >&2
+    exit 1
+  fi
+
+  if ! cargo llvm-cov --version >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+Missing dependency: cargo-llvm-cov
+Install it with:
+  cargo install cargo-llvm-cov
+EOF
+    exit 1
+  fi
+
+  mkdir -p "$coverage_dir"
+
+  echo "Generating backend HTML coverage report..."
+  (
+    cd "$BACKEND_DIR"
+    cargo llvm-cov clean --workspace
+    cargo llvm-cov --workspace --all-features --ignore-run-fail --html --output-dir "$html_dir"
+  )
+
+  echo "Generating backend LCOV report..."
+  (
+    cd "$BACKEND_DIR"
+    cargo llvm-cov --workspace --all-features --ignore-run-fail --lcov --output-path "$lcov_file"
+  )
+
+  echo "Coverage reports generated:"
+  echo "  HTML: ${html_index}"
+  echo "  LCOV: ${lcov_file}"
+}
+
 main() {
   ensure_requirements
 
@@ -200,6 +258,12 @@ main() {
       ;;
     status)
       status_services
+      ;;
+    test)
+      run_tests
+      ;;
+    coverage)
+      run_coverage
       ;;
     -h|--help|help)
       usage
