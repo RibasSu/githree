@@ -7,13 +7,14 @@
   --gh-bg: #0d1117;
   --gh-canvas: #0d1117;
   --gh-canvas-subtle: #161b22;
-  --gh-canvas-inset: #010409;
+  --gh-canvas-inset: #0d1117;
   --gh-border: #30363d;
   --gh-border-muted: #21262d;
   --gh-fg: #c9d1d9;
   --gh-fg-muted: #8b949e;
-  --gh-accent: #2f81f7;
-  --gh-success: #238636;
+  --gh-accent: #58a6ff;
+  --gh-primary: #f05032;
+  --gh-success: #f05032;
   --gh-danger: #da3633;
   --gh-code: #161b22;
 }
@@ -67,12 +68,12 @@ a {
 
 .btn-code {
   border-color: color-mix(in srgb, var(--gh-accent) 62%, black 38%);
-  background: #2f81f7;
+  background: var(--gh-accent);
   color: #ffffff;
 }
 
 .btn-code:hover {
-  background: color-mix(in srgb, #2f81f7 85%, #ffffff 15%);
+  background: color-mix(in srgb, var(--gh-accent) 85%, #ffffff 15%);
 }
 
 .input {
@@ -97,6 +98,36 @@ a {
 
 .link-muted {
   color: var(--gh-fg-muted);
+}
+
+.link-muted:hover {
+  color: var(--gh-fg);
+}
+
+.gh-crumb-link {
+  color: var(--gh-fg-muted);
+}
+
+.gh-crumb-link:hover {
+  color: var(--gh-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.gh-focus-accent:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 28%, transparent 72%);
+}
+
+.gh-branch-tab-active {
+  border-bottom: 2px solid var(--gh-primary);
+  color: #f0f6fc;
+  font-weight: 600;
+}
+
+.gh-common-badge {
+  background: color-mix(in srgb, var(--gh-accent) 22%, transparent 78%);
+  color: var(--gh-accent);
 }
 
 .repo-shell {
@@ -202,7 +233,7 @@ a {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border: 1px solid #1f6feb;
+  border: 1px solid var(--gh-accent);
   border-radius: 8px;
   padding: 0 0.62rem;
   background: #0d1117;
@@ -396,7 +427,7 @@ a {
 }
 
 .gh-go-to-file-item.active {
-  background: #1f6feb20;
+  background: color-mix(in srgb, var(--gh-accent) 16%, transparent 84%);
 }
 
 .gh-toolbar-stat {
@@ -429,7 +460,7 @@ a {
 
 .gh-code-menu-tab.active {
   color: #f0f6fc;
-  border-bottom: 2px solid #f78166;
+  border-bottom: 2px solid var(--gh-primary);
 }
 
 .gh-clone-command {
@@ -469,7 +500,7 @@ a {
 
 .gh-doc-tab.active {
   color: #f0f6fc;
-  border-bottom-color: #f78166;
+  border-bottom-color: var(--gh-primary);
 }
 
 .github-markdown {

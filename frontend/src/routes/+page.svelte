@@ -255,7 +255,7 @@
       </button>
     </form>
     {#if repoUrlError.length > 0}
-      <p class="mt-2 text-sm text-[#f85149]" id="repo-url-error" role="alert">{repoUrlError}</p>
+      <p class="mt-2 text-sm text-[#da3633]" id="repo-url-error" role="alert">{repoUrlError}</p>
     {/if}
 
     {#if !webRepoManagement}

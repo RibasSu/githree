@@ -124,7 +124,7 @@
   {#if latestCommit}
     <div class="card-surface flex flex-wrap items-center gap-3 px-3 py-2 text-xs gh-muted">
       <span>Last commit:</span>
-      <code class="rounded-sm border gh-divider bg-[#0d1117] px-1.5 py-0.5 font-mono text-[#2f81f7]">
+      <code class="link-accent rounded-sm border gh-divider bg-[#0d1117] px-1.5 py-0.5 font-mono">
         {latestCommit.short_hash}
       </code>
       <span>{latestCommit.message_short}</span>

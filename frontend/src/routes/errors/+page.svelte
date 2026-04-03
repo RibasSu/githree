@@ -37,7 +37,7 @@
             <td class="px-4 py-3 text-[#f0f6fc]">
               {entry.title}
               {#if commonHighlights.includes(entry.status)}
-                <span class="ml-2 rounded bg-[#1f6feb]/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#58a6ff]">
+                <span class="gh-common-badge ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                   common
                 </span>
               {/if}
@@ -53,4 +53,3 @@
     </table>
   </div>
 </section>
-

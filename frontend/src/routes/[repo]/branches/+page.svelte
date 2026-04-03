@@ -115,7 +115,7 @@
   <section class="card-surface overflow-hidden">
     <div class="border-b gh-divider bg-[#0d1117] px-4 py-3">
       <div class="flex items-center gap-4 text-sm">
-        <span class="border-b-2 border-[#f78166] pb-2 font-semibold text-[#f0f6fc]">All</span>
+        <span class="gh-branch-tab-active pb-2">All</span>
       </div>
 
       <label class="gh-go-to-file mt-3 w-full" for="branch-search-input">
@@ -166,7 +166,7 @@
                 <td class="px-4 py-3">
                   {#if latestCommitByBranch[branch]}
                     <a
-                      class="link-muted hover:text-[#c9d1d9]"
+                      class="link-muted"
                       href={`/${data.repo}/commit/${latestCommitByBranch[branch]?.hash}?ref=${encodeURIComponent(branch)}`}
                     >
                       {formatRelativeTime(latestCommitByBranch[branch]?.authored_at || '')}

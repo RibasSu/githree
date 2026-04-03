@@ -51,7 +51,7 @@
           <td class="px-4 py-3">
             <a
               aria-label={`Open ${entry.path}`}
-              class="flex items-center gap-2 rounded-sm outline-none focus:ring-2 focus:ring-[#2f81f7]/70"
+              class="gh-focus-accent flex items-center gap-2 rounded-sm outline-none"
               href={hrefFor(entry)}
             >
               {#if entry.entry_type === 'tree'}

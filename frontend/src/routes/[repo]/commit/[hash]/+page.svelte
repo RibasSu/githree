@@ -56,7 +56,7 @@
       <dl class="mt-4 grid gap-2 text-xs md:grid-cols-2">
         <div>
           <dt class="gh-muted">Hash</dt>
-          <dd class="font-mono text-[#2f81f7]">{detail.commit.hash}</dd>
+          <dd class="link-accent font-mono">{detail.commit.hash}</dd>
         </div>
         <div>
           <dt class="gh-muted">Author</dt>
@@ -77,7 +77,7 @@
       <span class="font-semibold text-[#f0f6fc]">Diff Stats: </span>
       <span class="gh-muted">{detail.stats.files_changed} files changed</span>
       <span class="mx-2 text-[#3fb950]">+{detail.stats.insertions}</span>
-      <span class="text-[#f85149]">-{detail.stats.deletions}</span>
+      <span class="text-[#da3633]">-{detail.stats.deletions}</span>
     </div>
 
     {#if detail.is_truncated}
@@ -102,7 +102,7 @@
           {:else}
             {#each file.hunks as hunk}
               <div class="border-t gh-divider">
-                <div class="bg-[#161b22] px-4 py-1 font-mono text-xs text-[#2f81f7]">{hunk.header}</div>
+                <div class="bg-[#161b22] px-4 py-1 font-mono text-xs link-accent">{hunk.header}</div>
                 <pre class="overflow-x-auto p-3 font-mono text-xs leading-6">{#each hunk.lines as line}<div class={lineClass(line.line_type)}>{line.content}</div>{/each}</pre>
               </div>
             {/each}

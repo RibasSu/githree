@@ -67,7 +67,7 @@
         />
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
-            <code class="rounded-sm border gh-divider bg-[#0d1117] px-1.5 py-0.5 font-mono text-xs text-[#2f81f7]">
+            <code class="link-accent rounded-sm border gh-divider bg-[#0d1117] px-1.5 py-0.5 font-mono text-xs">
               {commit.short_hash}
             </code>
             <span class="truncate text-sm text-[#c9d1d9]">{commit.message_short}</span>
