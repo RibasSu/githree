@@ -29,14 +29,13 @@ pub async fn ensure_repo_ready(
     }
 
     if !state.config.git.fetch_on_request {
-        if synced_now {
-            refresh_repository_metadata(&state, repo_name).await;
-        }
+        refresh_repository_metadata(&state, repo_name, synced_now).await;
         return Ok(());
     }
 
     let fetch_key = format!("{repo_name}|{url}");
     if state.fetch_guard_cache.get(&fetch_key).await.is_some() {
+        refresh_repository_metadata(&state, repo_name, false).await;
         return Ok(());
     }
 
@@ -45,9 +44,7 @@ pub async fn ensure_repo_ready(
     let repo_name = repo_name.to_string();
     let outcome = spawn_blocking(move || git::clone::fetch_repo(&local_path, &url, &config)).await;
     synced_now = handle_fetch_outcome(&state, &repo_name, outcome) || synced_now;
-    if synced_now {
-        refresh_repository_metadata(&state, &repo_name).await;
-    }
+    refresh_repository_metadata(&state, &repo_name, synced_now).await;
 
     Ok(())
 }
@@ -74,7 +71,7 @@ fn handle_fetch_outcome(
     }
 }
 
-async fn refresh_repository_metadata(state: &AppState, repo_name: &str) {
+async fn refresh_repository_metadata(state: &AppState, repo_name: &str, mark_last_fetched: bool) {
     let existing = match state.registry.get(repo_name).await {
         Ok(value) => value,
         Err(err) => {
@@ -105,10 +102,20 @@ async fn refresh_repository_metadata(state: &AppState, repo_name: &str) {
         }
     };
 
-    let mut updated = existing;
+    let mut updated = existing.clone();
     updated.default_branch = default_branch;
     updated.size_kb = size_kb;
-    updated.last_fetched = Some(Utc::now());
+    if mark_last_fetched {
+        updated.last_fetched = Some(Utc::now());
+    }
+
+    let changed = updated.default_branch != existing.default_branch
+        || updated.size_kb != existing.size_kb
+        || (mark_last_fetched && updated.last_fetched != existing.last_fetched);
+    if !changed {
+        return;
+    }
+
     if let Err(err) = state.registry.upsert(updated).await {
         warn!(repo = %repo_name, error = %err, "failed to persist repository metadata");
     }

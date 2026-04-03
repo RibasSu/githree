@@ -1,5 +1,7 @@
 mod common;
 
+use std::fs;
+
 use axum_test::TestServer;
 use githree::config::AppConfig;
 use githree::git::{CommitInfo, RepoInfo};
@@ -52,6 +54,36 @@ async fn api_routes_trigger_fetch_when_enabled() {
         .get("/api/repos/fetch-repo/refs")
         .await
         .assert_status_ok();
+
+    let post_fetch_list = server.get("/api/repos").await;
+    post_fetch_list.assert_status_ok();
+    let post_fetch_repos: Vec<RepoInfo> = post_fetch_list.json();
+    let post_fetch_size_kb = post_fetch_repos
+        .first()
+        .map(|repo| repo.size_kb)
+        .expect("repo should exist after fetch");
+
+    let local_repo_path = temp.path().join("repos").join("fetch-repo");
+    fs::write(
+        local_repo_path.join("size-probe.bin"),
+        vec![42_u8; 8 * 1024],
+    )
+    .expect("write probe");
+
+    server
+        .get("/api/repos/fetch-repo/tree")
+        .add_query_param("path", "")
+        .await
+        .assert_status_ok();
+
+    let size_refreshed_list = server.get("/api/repos").await;
+    size_refreshed_list.assert_status_ok();
+    let size_refreshed_repos: Vec<RepoInfo> = size_refreshed_list.json();
+    let size_refreshed_kb = size_refreshed_repos
+        .first()
+        .map(|repo| repo.size_kb)
+        .expect("repo should exist after local size probe");
+    assert!(size_refreshed_kb >= post_fetch_size_kb + 8);
 
     server
         .get("/api/repos/fetch-repo/tree")
