@@ -1,13 +1,13 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 use git2::{ObjectType, Repository, Tree};
 use tar::Builder as TarBuilder;
 use tempfile::Builder as TempFileBuilder;
-use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
+use zip::write::SimpleFileOptions;
 
 use crate::error::AppError;
 use crate::git::ArchiveResponse;
@@ -140,10 +140,10 @@ fn resolve_commit<'a>(repo: &'a Repository, ref_name: &str) -> Result<git2::Comm
     ];
 
     for candidate in candidate_refs {
-        if let Ok(object) = repo.revparse_single(&candidate) {
-            if let Ok(commit) = object.peel_to_commit() {
-                return Ok(commit);
-            }
+        if let Ok(object) = repo.revparse_single(&candidate)
+            && let Ok(commit) = object.peel_to_commit()
+        {
+            return Ok(commit);
         }
     }
 

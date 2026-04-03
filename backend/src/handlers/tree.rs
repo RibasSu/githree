@@ -1,4 +1,4 @@
-use axum::{extract::Path, extract::Query, extract::State, Json};
+use axum::{Json, extract::Path, extract::Query, extract::State};
 use serde::Deserialize;
 use tokio::task::spawn_blocking;
 use tracing::instrument;
@@ -46,7 +46,7 @@ async fn maybe_fetch_repo(
     local_path: std::path::PathBuf,
     url: String,
 ) -> Result<(), AppError> {
-    if state.config.git.fetch_on_request == false {
+    if !state.config.git.fetch_on_request {
         return Ok(());
     }
     let config = state.config.clone();

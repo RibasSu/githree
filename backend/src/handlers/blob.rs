@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
+use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
-use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::HeaderValue;
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use tokio::task::spawn_blocking;
 use tracing::instrument;
@@ -105,7 +105,7 @@ async fn maybe_fetch_repo(
     local_path: PathBuf,
     url: String,
 ) -> Result<(), AppError> {
-    if state.config.git.fetch_on_request == false {
+    if !state.config.git.fetch_on_request {
         return Ok(());
     }
     let config = state.config.clone();

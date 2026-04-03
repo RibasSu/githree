@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::{cell::Cell, cell::RefCell};
 
-use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use chrono::{DateTime, Utc};
 use git2::{
     Commit, DiffDelta, DiffHunk as GitDiffHunk, DiffLine as GitDiffLine, DiffOptions, ObjectType,
@@ -11,8 +11,8 @@ use git2::{
 
 use crate::error::AppError;
 use crate::git::{
-    detect_language, BlobResponse, CommitDetail, CommitInfo, DiffHunk, DiffLine, DiffStats,
-    FileDiff, ReadmeResponse, TreeEntry,
+    BlobResponse, CommitDetail, CommitInfo, DiffHunk, DiffLine, DiffStats, FileDiff,
+    ReadmeResponse, TreeEntry, detect_language,
 };
 
 pub struct RawFile {
@@ -196,16 +196,16 @@ pub fn read_readme(local_path: &Path, ref_name: &str) -> Result<ReadmeResponse, 
     let tree = commit.tree()?;
 
     for candidate in CANDIDATES {
-        if let Ok(entry) = tree.get_path(Path::new(candidate)) {
-            if entry.kind() == Some(ObjectType::Blob) {
-                let blob = repo.find_blob(entry.id())?;
-                let content = String::from_utf8_lossy(blob.content()).to_string();
-                return Ok(ReadmeResponse {
-                    content,
-                    filename: candidate.to_string(),
-                    path: candidate.to_string(),
-                });
-            }
+        if let Ok(entry) = tree.get_path(Path::new(candidate))
+            && entry.kind() == Some(ObjectType::Blob)
+        {
+            let blob = repo.find_blob(entry.id())?;
+            let content = String::from_utf8_lossy(blob.content()).to_string();
+            return Ok(ReadmeResponse {
+                content,
+                filename: candidate.to_string(),
+                path: candidate.to_string(),
+            });
         }
     }
 
@@ -233,9 +233,7 @@ pub fn commit_history(
         let oid = oid_result?;
         let commit = repo.find_commit(oid)?;
 
-        if path_filter.is_empty() == false
-            && commit_touches_path(&repo, &commit, &path_filter)? == false
-        {
+        if !path_filter.is_empty() && !commit_touches_path(&repo, &commit, &path_filter)? {
             continue;
         }
 
@@ -318,10 +316,10 @@ pub fn commit_detail(local_path: &Path, hash: &str) -> Result<CommitDetail, AppE
                 (current_file_index.get(), current_hunk_index.get())
             {
                 let mut diffs = file_diffs.borrow_mut();
-                if let Some(file_diff) = diffs.get_mut(file_idx) {
-                    if let Some(hunk) = file_diff.hunks.get_mut(hunk_idx) {
-                        hunk.lines.push(map_line(&line));
-                    }
+                if let Some(file_diff) = diffs.get_mut(file_idx)
+                    && let Some(hunk) = file_diff.hunks.get_mut(hunk_idx)
+                {
+                    hunk.lines.push(map_line(&line));
                 }
             }
             true
@@ -355,10 +353,10 @@ fn resolve_commit<'a>(repo: &'a Repository, ref_name: &str) -> Result<Commit<'a>
     ];
 
     for candidate in candidate_refs {
-        if let Ok(object) = repo.revparse_single(&candidate) {
-            if let Ok(commit) = object.peel_to_commit() {
-                return Ok(commit);
-            }
+        if let Ok(object) = repo.revparse_single(&candidate)
+            && let Ok(commit) = object.peel_to_commit()
+        {
+            return Ok(commit);
         }
     }
 
@@ -458,7 +456,7 @@ fn looks_binary(data: &[u8]) -> bool {
         return true;
     }
 
-    std::str::from_utf8(data).is_ok() == false
+    std::str::from_utf8(data).is_err()
 }
 
 fn timestamp_to_utc(seconds: i64) -> DateTime<Utc> {

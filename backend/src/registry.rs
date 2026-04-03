@@ -91,6 +91,7 @@ fn read_all_sync(path: &Path) -> Result<Vec<RepoInfo>, AppError> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(path)?;
     let mut lock = RwLock::new(file);
     let mut guard = lock.write().map_err(|e| AppError::IoError(e.to_string()))?;
@@ -108,6 +109,7 @@ fn write_all_sync(path: &Path, repos: &[RepoInfo]) -> Result<(), AppError> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(path)?;
     let mut lock = RwLock::new(file);
     let mut guard = lock.write().map_err(|e| AppError::IoError(e.to_string()))?;

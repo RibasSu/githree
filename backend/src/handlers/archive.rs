@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use axum::extract::{Path, Query, State};
-use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::HeaderValue;
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::IntoResponse;
 use serde::Deserialize;
 use tokio::fs::File;
@@ -77,7 +77,7 @@ async fn maybe_fetch_repo(
     local_path: PathBuf,
     url: String,
 ) -> Result<(), AppError> {
-    if state.config.git.fetch_on_request == false {
+    if !state.config.git.fetch_on_request {
         return Ok(());
     }
     let config = state.config.clone();

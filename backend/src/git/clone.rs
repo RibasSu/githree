@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use git2::{build::RepoBuilder, Cred, CredentialType, FetchOptions, RemoteCallbacks, Repository};
+use git2::{Cred, CredentialType, FetchOptions, RemoteCallbacks, Repository, build::RepoBuilder};
 use tracing::info;
 use url::Url;
 
@@ -87,10 +87,10 @@ fn remote_callbacks(config: &AppConfig, original_url: &str) -> RemoteCallbacks<'
     let credential = find_credential_for_url(original_url, config);
 
     callbacks.credentials(move |url, username_from_url, allowed| {
-        if allowed.contains(CredentialType::USER_PASS_PLAINTEXT) {
-            if let Some(cred) = credential_for_callback(url, &credential) {
-                return Cred::userpass_plaintext(&cred.username, &cred.password);
-            }
+        if allowed.contains(CredentialType::USER_PASS_PLAINTEXT)
+            && let Some(cred) = credential_for_callback(url, &credential)
+        {
+            return Cred::userpass_plaintext(&cred.username, &cred.password);
         }
 
         if allowed.contains(CredentialType::SSH_KEY) {

@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::error::AppError;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(default)]
     pub server: ServerConfig,
@@ -59,18 +59,6 @@ pub struct RepoCredential {
     pub password: String,
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            storage: StorageConfig::default(),
-            git: GitConfig::default(),
-            fetch: FetchConfig::default(),
-            repos: ReposConfig::default(),
-        }
-    }
-}
-
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
@@ -85,7 +73,7 @@ impl Default for StorageConfig {
         Self {
             repos_dir: "./data/repos".to_string(),
             registry_file: "./data/repos.json".to_string(),
-            static_dir: "./frontend/build".to_string(),
+            static_dir: "./static".to_string(),
         }
     }
 }
@@ -147,13 +135,13 @@ impl AppConfig {
 }
 
 fn expand_tilde(path: &str) -> String {
-    if let Some(stripped) = path.strip_prefix("~/") {
-        if let Ok(home) = env::var("HOME") {
-            return PathBuf::from(home)
-                .join(stripped)
-                .to_string_lossy()
-                .to_string();
-        }
+    if let Some(stripped) = path.strip_prefix("~/")
+        && let Ok(home) = env::var("HOME")
+    {
+        return PathBuf::from(home)
+            .join(stripped)
+            .to_string_lossy()
+            .to_string();
     }
     path.to_string()
 }
