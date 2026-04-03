@@ -183,12 +183,12 @@
       'mkdir -p "$(dirname "$REGISTRY_FILE")"',
       'test -f "$REGISTRY_FILE" || echo "[]" > "$REGISTRY_FILE"',
       'git clone --bare "$REPO_URL" "$REPOS_DIR/$REPO_NAME"',
-      'DEFAULT_BRANCH="$(git --git-dir "$REPOS_DIR/$REPO_NAME" symbolic-ref --short refs/remotes/origin/HEAD | sed \'s#^origin/##\')"',
+      'DEFAULT_BRANCH="$(git --git-dir "$REPOS_DIR/$REPO_NAME" symbolic-ref --short HEAD 2>/dev/null || true)"',
+      'if [ -z "$DEFAULT_BRANCH" ]; then DEFAULT_BRANCH="$(git --git-dir "$REPOS_DIR/$REPO_NAME" for-each-ref --format=\'%(refname:short)\' refs/heads | head -n1)"; fi',
+      'if [ -z "$DEFAULT_BRANCH" ]; then DEFAULT_BRANCH="main"; fi',
       'SIZE_KB="$(du -sk "$REPOS_DIR/$REPO_NAME" | awk \'{print $1}\')"',
       'TMP_FILE="$(mktemp)"',
-      `jq --arg name "$REPO_NAME" --arg url "$REPO_URL" --arg branch "$DEFAULT_BRANCH" --arg source ${shellQuote(source)} --argjson size "$SIZE_KB" '\\`,
-      "  map(select(.name != $name)) + [{name:$name,url:$url,description:null,default_branch:$branch,last_fetched:null,size_kb:$size,source:$source}]' \\",
-      '  "$REGISTRY_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$REGISTRY_FILE"'
+      `jq --arg name "$REPO_NAME" --arg url "$REPO_URL" --arg branch "$DEFAULT_BRANCH" --arg source ${shellQuote(source)} --argjson size "$SIZE_KB" 'map(select(.name != $name)) + [{name:$name,url:$url,description:null,default_branch:$branch,last_fetched:null,size_kb:$size,source:$source}]' "$REGISTRY_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$REGISTRY_FILE"`
     ].join('\n');
   }
 
