@@ -50,6 +50,7 @@ fn handle_fetch_outcome(
     match outcome {
         Ok(Ok(())) => {
             state.tree_cache.invalidate_all();
+            state.language_cache.invalidate_all();
         }
         Ok(Err(err)) => {
             warn!(repo = %repo_name, error = %err, "on-request fetch failed");

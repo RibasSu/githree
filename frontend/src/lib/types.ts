@@ -16,6 +16,12 @@ export interface RefsResponse {
   default_branch: string;
 }
 
+export interface LanguageStat {
+  language: string;
+  bytes: number;
+  percentage: number;
+}
+
 export interface TreeEntry {
   name: string;
   path: string;

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::{cell::Cell, cell::RefCell};
 
@@ -11,7 +12,7 @@ use git2::{
 
 use crate::error::AppError;
 use crate::git::{
-    BlobResponse, CommitDetail, CommitInfo, DiffHunk, DiffLine, DiffStats, FileDiff,
+    BlobResponse, CommitDetail, CommitInfo, DiffHunk, DiffLine, DiffStats, FileDiff, LanguageStat,
     ReadmeResponse, TreeEntry, detect_language,
 };
 
@@ -236,6 +237,37 @@ pub fn read_readme(local_path: &Path, ref_name: &str) -> Result<ReadmeResponse, 
     }
 
     Err(AppError::NotFound("README file not found".to_string()))
+}
+
+pub fn language_stats(local_path: &Path, ref_name: &str) -> Result<Vec<LanguageStat>, AppError> {
+    let repo = Repository::open_bare(local_path)?;
+    let commit = resolve_commit(&repo, ref_name)?;
+    let root_tree = commit.tree()?;
+    let mut totals: HashMap<String, u64> = HashMap::new();
+    let mut total_bytes = 0_u64;
+
+    collect_language_bytes(&repo, &root_tree, "", &mut totals, &mut total_bytes)?;
+
+    let mut languages = totals
+        .into_iter()
+        .map(|(language, bytes)| LanguageStat {
+            language,
+            bytes,
+            percentage: if total_bytes == 0 {
+                0.0
+            } else {
+                (bytes as f64 * 100.0) / total_bytes as f64
+            },
+        })
+        .collect::<Vec<_>>();
+
+    languages.sort_by(|left, right| {
+        right
+            .bytes
+            .cmp(&left.bytes)
+            .then_with(|| left.language.cmp(&right.language))
+    });
+    Ok(languages)
 }
 
 pub fn commit_history(
@@ -502,6 +534,54 @@ fn commit_touches_path(
     options.pathspec(path);
     let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut options))?;
     Ok(diff.deltas().len() > 0)
+}
+
+fn collect_language_bytes(
+    repo: &Repository,
+    tree: &git2::Tree<'_>,
+    prefix: &str,
+    totals: &mut HashMap<String, u64>,
+    total_bytes: &mut u64,
+) -> Result<(), AppError> {
+    for entry in tree {
+        let name = entry.name().unwrap_or_default();
+        let full_path = if prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{prefix}/{name}")
+        };
+
+        match entry.kind() {
+            Some(ObjectType::Tree) => {
+                let nested = repo.find_tree(entry.id())?;
+                collect_language_bytes(repo, &nested, &full_path, totals, total_bytes)?;
+            }
+            Some(ObjectType::Blob) => {
+                let blob = repo.find_blob(entry.id())?;
+                let bytes = blob.content();
+                if looks_binary(bytes) {
+                    continue;
+                }
+
+                let raw_language = detect_language(&full_path);
+                let language = if raw_language == "text" {
+                    "other".to_string()
+                } else {
+                    raw_language
+                };
+                let size = blob.size() as u64;
+                if size == 0 {
+                    continue;
+                }
+
+                *totals.entry(language).or_insert(0) += size;
+                *total_bytes = total_bytes.saturating_add(size);
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
 }
 
 fn looks_binary(data: &[u8]) -> bool {

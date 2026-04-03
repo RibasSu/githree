@@ -684,6 +684,41 @@ a {
   line-height: 1.35rem;
 }
 
+.gt-language-bar {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--gt-border);
+  border-radius: 999px;
+  background: #0d1117;
+  height: 10px;
+}
+
+.gt-language-segment {
+  height: 100%;
+}
+
+.gt-language-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.8rem;
+}
+
+.gt-language-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.gt-language-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, black 30%, transparent 70%);
+}
+
 .gt-muted {
   color: var(--gt-fg-muted);
 }

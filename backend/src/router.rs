@@ -19,6 +19,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/repos/{name}", delete(handlers::repos::delete_repo))
         .route("/repos/{name}/fetch", post(handlers::repos::fetch_repo))
         .route("/repos/{name}/refs", get(handlers::refs::get_refs))
+        .route(
+            "/repos/{name}/languages",
+            get(handlers::languages::get_languages),
+        )
         .route("/repos/{name}/tree", get(handlers::tree::get_tree))
         .route("/repos/{name}/blob", get(handlers::blob::get_blob))
         .route("/repos/{name}/raw", get(handlers::blob::get_raw))

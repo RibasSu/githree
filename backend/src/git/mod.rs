@@ -35,6 +35,13 @@ pub struct RefsResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LanguageStat {
+    pub language: String,
+    pub bytes: u64,
+    pub percentage: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TreeEntry {
     pub name: String,
     pub path: String,
@@ -209,6 +216,7 @@ pub fn detect_language(path: &str) -> String {
         Some("ts") => "typescript",
         Some("tsx") => "tsx",
         Some("jsx") => "jsx",
+        Some("svelte") => "svelte",
         Some("py") => "python",
         Some("go") => "go",
         Some("java") => "java",

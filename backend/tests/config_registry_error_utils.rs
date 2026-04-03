@@ -194,6 +194,7 @@ fn git_utilities_cover_name_source_language_and_path_helpers() {
 
     assert_eq!(git::detect_language("src/main.rs"), "rust");
     assert_eq!(git::detect_language("pkg/index.ts"), "typescript");
+    assert_eq!(git::detect_language("frontend/App.svelte"), "svelte");
     assert_eq!(git::detect_language("docs/README.md"), "markdown");
     assert_eq!(git::detect_language(".gitignore"), "text");
     assert_eq!(git::detect_language("Dockerfile"), "docker");
@@ -211,4 +212,19 @@ async fn state_initializes_cache() {
     state.tree_cache.insert(key.clone(), vec![]).await;
     let cached = state.tree_cache.get(&key).await;
     assert!(cached.is_some());
+
+    let language_key = "sample|main".to_string();
+    state
+        .language_cache
+        .insert(
+            language_key.clone(),
+            vec![git::LanguageStat {
+                language: "rust".to_string(),
+                bytes: 128,
+                percentage: 100.0,
+            }],
+        )
+        .await;
+    let cached_languages = state.language_cache.get(&language_key).await;
+    assert!(cached_languages.is_some());
 }

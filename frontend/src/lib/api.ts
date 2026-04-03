@@ -4,6 +4,7 @@ import type {
   AppSettings,
   CommitDetail,
   CommitInfo,
+  LanguageStat,
   ReadmeResponse,
   RefsResponse,
   RepoInfo,
@@ -179,6 +180,16 @@ export const api = {
 
   getRefs(name: string) {
     return request<RefsResponse>(`/repos/${encodeURIComponent(name)}/refs`);
+  },
+
+  getLanguages(name: string, refName: string) {
+    const query = new URLSearchParams({ ref: refName });
+    return request<LanguageStat[]>(
+      `/repos/${encodeURIComponent(name)}/languages?${query.toString()}`,
+      {
+        cacheTtlMs: 60_000
+      }
+    );
   },
 
   getTree(name: string, refName: string, path = '') {

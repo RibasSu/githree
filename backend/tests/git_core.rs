@@ -39,6 +39,19 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
     let docs = git::browse::list_tree(&local_path, "main", "docs").expect("list docs tree");
     assert!(docs.iter().any(|entry| entry.name == "renamed-guide.md"));
 
+    let language_stats = git::browse::language_stats(&local_path, "main").expect("language stats");
+    assert!(!language_stats.is_empty());
+    assert!(
+        language_stats
+            .iter()
+            .any(|entry| entry.language == "rust" && entry.bytes > 0)
+    );
+    assert!(
+        language_stats
+            .iter()
+            .all(|entry| entry.percentage >= 0.0 && entry.percentage <= 100.0)
+    );
+
     let missing_tree = git::browse::list_tree(&local_path, "main", "missing/path")
         .expect_err("missing tree should error");
     match missing_tree {

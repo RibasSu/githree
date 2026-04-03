@@ -5,7 +5,14 @@
   import { api } from '$lib/api';
   import { highlightMarkdownCodeBlocks } from '$lib/markdown';
   import { formatDateTime } from '$lib/time';
-  import type { CommitInfo, ReadmeResponse, RefsResponse, RepoInfo, TreeEntry } from '$lib/types';
+  import type {
+    CommitInfo,
+    LanguageStat,
+    ReadmeResponse,
+    RefsResponse,
+    RepoInfo,
+    TreeEntry
+  } from '$lib/types';
   import { BookOpen, ChevronDown, Code2, Copy, FileText, Folder, Github, Gitlab, GitBranch, Scale, Search, Shield, Tag, Users } from 'lucide-svelte';
   import DOMPurify from 'dompurify';
   import { marked } from 'marked';
@@ -33,6 +40,7 @@
   let readme = $state<ReadmeResponse | null>(null);
   let readmeHtml = $state('');
   let recentCommits = $state<CommitInfo[]>([]);
+  let languageStats = $state<LanguageStat[]>([]);
   let selectedRef = $state('');
   let goToFilePath = $state('');
   let goToFileFocused = $state(false);
@@ -71,6 +79,7 @@
         readme = null;
         readmeHtml = '';
         recentCommits = [];
+        languageStats = [];
         return;
       }
       if (selectedRef.length === 0) {
@@ -105,15 +114,17 @@
         });
       }
 
-      const [nextTree, nextReadme, commits] = await Promise.all([
+      const [nextTree, nextReadme, commits, languages] = await Promise.all([
         api.getTree(data.repo, effectiveRef, ''),
         api.getReadme(data.repo, effectiveRef).catch(() => null),
-        api.getCommits(data.repo, effectiveRef, { limit: 30 })
+        api.getCommits(data.repo, effectiveRef, { limit: 30 }),
+        api.getLanguages(data.repo, effectiveRef).catch(() => [])
       ]);
       if (selectedRef !== effectiveRef) return;
       tree = nextTree;
       readme = nextReadme;
       recentCommits = commits;
+      languageStats = languages;
       fileSearchEntries = [];
       fileSearchActiveIndex = 0;
       await renderReadme();
@@ -333,6 +344,131 @@
   const showFileSearchDropdown = $derived(
     goToFileFocused && (fileSearchLoading || fileSearchResults.length > 0 || normalizedFileSearchQuery.length > 0)
   );
+  const visibleLanguageStats = $derived.by(() => {
+    if (languageStats.length === 0) {
+      return [] as LanguageStat[];
+    }
+
+    const mergedByLanguage = new Map<string, LanguageStat>();
+    for (const stat of languageStats) {
+      const key = stat.language.toLowerCase();
+      const current = mergedByLanguage.get(key);
+      if (current) {
+        mergedByLanguage.set(key, {
+          language: key,
+          bytes: current.bytes + stat.bytes,
+          percentage: current.percentage + stat.percentage
+        });
+      } else {
+        mergedByLanguage.set(key, {
+          language: key,
+          bytes: stat.bytes,
+          percentage: stat.percentage
+        });
+      }
+    }
+
+    const sorted = [...mergedByLanguage.values()].sort((left, right) => right.bytes - left.bytes);
+    const topLimit = 6;
+    const top = sorted.slice(0, topLimit);
+    const remaining = sorted.slice(topLimit);
+
+    if (remaining.length === 0) {
+      return top;
+    }
+
+    const remainingBytes = remaining.reduce((total, item) => total + item.bytes, 0);
+    const remainingPercentage = remaining.reduce((total, item) => total + item.percentage, 0);
+    const otherIndex = top.findIndex((item) => item.language === 'other');
+    if (otherIndex >= 0) {
+      const updated = [...top];
+      const current = updated[otherIndex];
+      updated[otherIndex] = {
+        language: 'other',
+        bytes: current.bytes + remainingBytes,
+        percentage: current.percentage + remainingPercentage
+      };
+      return updated;
+    }
+
+    return [...top, { language: 'other', bytes: remainingBytes, percentage: remainingPercentage }];
+  });
+
+  function languageColor(language: string): string {
+    const key = language.toLowerCase();
+    const colors: Record<string, string> = {
+      rust: '#dea584',
+      svelte: '#ff3e00',
+      typescript: '#3178c6',
+      javascript: '#f1e05a',
+      tsx: '#3178c6',
+      jsx: '#f1e05a',
+      css: '#563d7c',
+      html: '#e34c26',
+      markdown: '#083fa1',
+      python: '#3572a5',
+      go: '#00add8',
+      java: '#b07219',
+      c: '#555555',
+      cpp: '#f34b7d',
+      bash: '#89e051',
+      shell: '#89e051',
+      docker: '#384d54',
+      yaml: '#cb171e',
+      json: '#292929',
+      toml: '#9c4221',
+      sql: '#e38c00',
+      ruby: '#701516',
+      php: '#4f5d95',
+      swift: '#f05138',
+      kotlin: '#a97bff',
+      dart: '#00b4ab',
+      xml: '#0060ac',
+      other: '#8b949e',
+      text: '#8b949e'
+    };
+    return colors[key] ?? '#8b949e';
+  }
+
+  function languageLabel(language: string): string {
+    const key = language.toLowerCase();
+    const labels: Record<string, string> = {
+      rust: 'Rust',
+      svelte: 'Svelte',
+      typescript: 'TypeScript',
+      javascript: 'JavaScript',
+      tsx: 'TSX',
+      jsx: 'JSX',
+      css: 'CSS',
+      html: 'HTML',
+      markdown: 'Markdown',
+      python: 'Python',
+      go: 'Go',
+      java: 'Java',
+      c: 'C',
+      cpp: 'C++',
+      bash: 'Shell',
+      shell: 'Shell',
+      docker: 'Dockerfile',
+      yaml: 'YAML',
+      json: 'JSON',
+      toml: 'TOML',
+      sql: 'SQL',
+      ruby: 'Ruby',
+      php: 'PHP',
+      swift: 'Swift',
+      kotlin: 'Kotlin',
+      dart: 'Dart',
+      xml: 'XML',
+      other: 'Other',
+      text: 'Other'
+    };
+    return labels[key] ?? language.charAt(0).toUpperCase() + language.slice(1);
+  }
+
+  function languagePercent(percentage: number): string {
+    return `${Math.max(0, percentage).toFixed(1)}%`;
+  }
 
   function rewriteReadmeLinks(
     html: string,
@@ -706,6 +842,40 @@
           </dl>
           {#if repo.last_fetched}
             <p class="mt-3 text-xs gt-muted">Last fetched: {formatDateTime(repo.last_fetched)}</p>
+          {/if}
+        </div>
+
+        <div class="card-surface p-4">
+          <h3 class="text-sm font-semibold text-[#f0f6fc]">Languages</h3>
+          {#if visibleLanguageStats.length > 0}
+            <div
+              aria-label="Repository language distribution"
+              class="gt-language-bar mt-3"
+              role="img"
+            >
+              {#each visibleLanguageStats as stat (stat.language)}
+                <span
+                  class="gt-language-segment"
+                  style={`width: ${Math.max(stat.percentage, 0.8)}%; background-color: ${languageColor(stat.language)};`}
+                  title={`${languageLabel(stat.language)} ${languagePercent(stat.percentage)}`}
+                ></span>
+              {/each}
+            </div>
+            <ul class="gt-language-list mt-3">
+              {#each visibleLanguageStats as stat (stat.language)}
+                <li class="gt-language-item">
+                  <span
+                    aria-hidden="true"
+                    class="gt-language-dot"
+                    style={`background-color: ${languageColor(stat.language)};`}
+                  ></span>
+                  <span class="text-xs font-semibold text-[#f0f6fc]">{languageLabel(stat.language)}</span>
+                  <span class="text-xs gt-muted">{languagePercent(stat.percentage)}</span>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="mt-2 text-sm gt-muted">No language data available for this reference.</p>
           {/if}
         </div>
       </aside>

@@ -215,6 +215,8 @@ async fn fetch_all_repositories(state: AppState) -> Result<(), AppError> {
                 if let Err(err) = state.registry.upsert(repo).await {
                     warn!(error = %err, "failed to update repository fetch timestamp");
                 }
+                state.tree_cache.invalidate_all();
+                state.language_cache.invalidate_all();
             }
             Ok(Err(err)) => warn!(error = %err, "failed background fetch for repo"),
             Err(err) => error!(error = %err, "background fetch task join error"),

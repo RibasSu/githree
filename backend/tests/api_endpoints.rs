@@ -2,7 +2,8 @@ mod common;
 
 use axum_test::TestServer;
 use githree::git::{
-    BlobResponse, CommitDetail, CommitInfo, ReadmeResponse, RefsResponse, RepoInfo, TreeEntry,
+    BlobResponse, CommitDetail, CommitInfo, LanguageStat, ReadmeResponse, RefsResponse, RepoInfo,
+    TreeEntry,
 };
 use githree::registry::RepoRegistry;
 use githree::router;
@@ -43,6 +44,19 @@ async fn api_repository_lifecycle_and_browsing_routes_work() {
     refs.assert_status_ok();
     let refs_payload: RefsResponse = refs.json();
     assert!(refs_payload.branches.iter().any(|branch| branch == "main"));
+
+    let languages = server
+        .get("/api/repos/sample-repo/languages")
+        .add_query_param("ref", "main")
+        .await;
+    languages.assert_status_ok();
+    let language_payload: Vec<LanguageStat> = languages.json();
+    assert!(!language_payload.is_empty());
+    assert!(
+        language_payload
+            .iter()
+            .any(|entry| entry.language == "rust" && entry.bytes > 0)
+    );
 
     let tree = server
         .get("/api/repos/sample-repo/tree")
