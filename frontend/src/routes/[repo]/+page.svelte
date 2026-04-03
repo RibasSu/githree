@@ -41,6 +41,7 @@
   let readmeHtml = $state('');
   let recentCommits = $state<CommitInfo[]>([]);
   let languageStats = $state<LanguageStat[]>([]);
+  let totalCommitCount = $state<number | null>(null);
   let selectedRef = $state('');
   let goToFilePath = $state('');
   let goToFileFocused = $state(false);
@@ -101,6 +102,7 @@
         readmeHtml = '';
         recentCommits = [];
         languageStats = [];
+        totalCommitCount = null;
         return;
       }
       if (selectedRef.length === 0) {
@@ -135,17 +137,26 @@
         });
       }
 
-      const [nextTree, nextReadme, commits, languages] = await Promise.all([
+      const [nextTree, nextReadme, commits, languages, commitCount, refreshedRepos] = await Promise.all([
         api.getTree(data.repo, effectiveRef, ''),
         api.getReadme(data.repo, effectiveRef).catch(() => null),
         api.getCommits(data.repo, effectiveRef, { limit: 30 }),
-        api.getLanguages(data.repo, effectiveRef).catch(() => [])
+        api.getLanguages(data.repo, effectiveRef).catch(() => []),
+        api.getCommitCount(data.repo, effectiveRef).catch(() => null),
+        api.listRepos(true).catch(() => null)
       ]);
       if (selectedRef !== effectiveRef) return;
       tree = nextTree;
       readme = nextReadme;
       recentCommits = commits;
       languageStats = languages;
+      totalCommitCount = commitCount?.count ?? null;
+      if (Array.isArray(refreshedRepos)) {
+        const refreshed = refreshedRepos.find((item) => item.name === data.repo);
+        if (refreshed) {
+          repo = refreshed;
+        }
+      }
       fileSearchEntries = [];
       fileSearchActiveIndex = 0;
       await renderReadme();
@@ -924,8 +935,8 @@
             <dd class="text-right">{refs?.tags.length ?? 0}</dd>
             <dt class="gt-muted">Size</dt>
             <dd class="text-right">{repo.size_kb} KB</dd>
-            <dt class="gt-muted">Loaded commits</dt>
-            <dd class="text-right">{recentCommits.length}</dd>
+            <dt class="gt-muted">Commits</dt>
+            <dd class="text-right">{totalCommitCount ?? recentCommits.length}</dd>
           </dl>
           {#if repo.last_fetched}
             <p class="mt-3 text-xs gt-muted">Last fetched: {formatDateTime(repo.last_fetched)}</p>

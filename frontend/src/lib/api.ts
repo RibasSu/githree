@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 import type {
   BlobResponse,
   AppSettings,
+  CommitCountResponse,
   CommitDetail,
   CommitInfo,
   LanguageStat,
@@ -155,8 +156,8 @@ export const api = {
     return request<AppSettings>('/settings', { cacheTtlMs: 60_000 });
   },
 
-  listRepos() {
-    return request<RepoInfo[]>('/repos', { cacheTtlMs: 15_000 });
+  listRepos(forceRefresh = false) {
+    return request<RepoInfo[]>('/repos', { cacheTtlMs: 15_000, forceRefresh });
   },
 
   addRepo(url: string, name?: string) {
@@ -223,6 +224,17 @@ export const api = {
     return request<CommitInfo[]>(`/repos/${encodeURIComponent(name)}/commits?${query.toString()}`, {
       cacheTtlMs: 30_000
     });
+  },
+
+  getCommitCount(name: string, refName: string, options?: { path?: string }) {
+    const query = new URLSearchParams({
+      ref: refName,
+      path: options?.path || ''
+    });
+    return request<CommitCountResponse>(
+      `/repos/${encodeURIComponent(name)}/commits/count?${query.toString()}`,
+      { cacheTtlMs: 30_000 }
+    );
   },
 
   getCommit(name: string, hash: string) {

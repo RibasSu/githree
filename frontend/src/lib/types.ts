@@ -59,6 +59,10 @@ export interface CommitInfo {
   message_short: string;
 }
 
+export interface CommitCountResponse {
+  count: number;
+}
+
 export interface DiffStats {
   files_changed: number;
   insertions: number;
