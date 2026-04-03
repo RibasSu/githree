@@ -1,4 +1,3 @@
-import { PUBLIC_API_URL } from '$env/static/public';
 import { writable } from 'svelte/store';
 import type {
   BlobResponse,
@@ -19,7 +18,11 @@ export interface ToastMessage {
   type: ToastType;
 }
 
-const apiBase = PUBLIC_API_URL || 'http://localhost:3001';
+const envApiBase =
+  typeof import.meta !== 'undefined' && import.meta.env
+    ? (import.meta.env.PUBLIC_API_URL as string | undefined)
+    : undefined;
+const apiBase = envApiBase || 'http://localhost:3001';
 
 export const apiLoading = writable(false);
 export const toasts = writable<ToastMessage[]>([]);

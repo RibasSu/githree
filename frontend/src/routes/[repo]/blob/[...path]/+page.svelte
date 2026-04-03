@@ -22,7 +22,7 @@
   let refs = $state<RefsResponse | null>(null);
   let blob = $state<BlobResponse | null>(null);
   let latestCommit = $state<CommitInfo | null>(null);
-  let selectedRef = $state(data.refName);
+  let selectedRef = $state('');
   let loading = $state(true);
 
   const rawUrl = $derived(api.rawUrl(data.repo, selectedRef || 'main', data.path));
@@ -39,7 +39,7 @@
   async function bootstrap() {
     refs = await api.getRefs(data.repo);
     if (selectedRef.length === 0) {
-      selectedRef = refs.default_branch || 'main';
+      selectedRef = data.refName || refs.default_branch || 'main';
     }
     await loadBlob();
   }

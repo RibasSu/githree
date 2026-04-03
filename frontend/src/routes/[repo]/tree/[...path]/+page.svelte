@@ -20,7 +20,7 @@
   let { data }: Props = $props();
   let refs = $state<RefsResponse | null>(null);
   let entries = $state<TreeEntry[]>([]);
-  let selectedRef = $state(data.refName);
+  let selectedRef = $state('');
   let loading = $state(true);
 
   const parentPath = $derived.by(() => {
@@ -41,7 +41,7 @@
   async function bootstrap() {
     refs = await api.getRefs(data.repo);
     if (selectedRef.length === 0) {
-      selectedRef = refs.default_branch || 'main';
+      selectedRef = data.refName || refs.default_branch || 'main';
     }
     await loadTree();
   }

@@ -25,7 +25,7 @@
   let readme = $state<ReadmeResponse | null>(null);
   let readmeHtml = $state('');
   let recentCommits = $state<CommitInfo[]>([]);
-  let selectedRef = $state(data.refName);
+  let selectedRef = $state('');
   let loading = $state(true);
 
   onMount(() => {
@@ -44,7 +44,7 @@
       repo = all.find((item) => item.name === data.repo) ?? null;
       refs = await api.getRefs(data.repo);
       if (selectedRef.length === 0) {
-        selectedRef = refs.default_branch || repo?.default_branch || 'main';
+        selectedRef = data.refName || refs.default_branch || repo?.default_branch || 'main';
       }
       await loadForRef();
     } finally {

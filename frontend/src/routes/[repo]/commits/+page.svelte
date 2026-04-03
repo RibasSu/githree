@@ -18,7 +18,7 @@
   let { data }: Props = $props();
   let refs = $state<RefsResponse | null>(null);
   let commits = $state<CommitInfo[]>([]);
-  let selectedRef = $state(data.refName);
+  let selectedRef = $state('');
   let skip = $state(0);
   let limit = 30;
   let loading = $state(true);
@@ -30,7 +30,7 @@
   async function bootstrap() {
     refs = await api.getRefs(data.repo);
     if (selectedRef.length === 0) {
-      selectedRef = refs.default_branch || 'main';
+      selectedRef = data.refName || refs.default_branch || 'main';
     }
     await loadCommits();
   }
