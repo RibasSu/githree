@@ -1,4 +1,5 @@
 use chrono::Utc;
+use serde_json::json;
 use tokio::net::TcpListener;
 use tokio::task::spawn_blocking;
 use tokio::time::{self, Duration};
@@ -7,21 +8,147 @@ use tracing_subscriber::EnvFilter;
 
 use githree::config::AppConfig;
 use githree::error::AppError;
+use githree::git::RepoInfo;
 use githree::state::AppState;
 use githree::{git, registry, router};
+
+const CLI_USAGE: &str = r#"Usage:
+  githree serve
+  githree repo add --url <repo_url> [--name <alias>]
+  githree repo remove --name <alias>
+  githree repo fetch --name <alias>
+  githree repo list
+
+Docker examples:
+  docker compose exec -T githree githree repo add --url https://github.com/user/repo.git --name my-repo
+  docker compose exec -T githree githree repo list
+"#;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CliCommand {
+    Serve,
+    Help,
+    RepoAdd { url: String, name: Option<String> },
+    RepoRemove { name: String },
+    RepoFetch { name: String },
+    RepoList,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
     init_tracing();
 
-    let config = AppConfig::load()?;
-    std::fs::create_dir_all(config.repos_dir())?;
-    if let Some(parent) = config.registry_file().parent() {
-        std::fs::create_dir_all(parent)?;
+    let args = collect_cli_args();
+    let command = parse_cli_command(&args)?;
+    match command {
+        CliCommand::Serve => run_server().await,
+        CliCommand::Help => {
+            write_stdout(CLI_USAGE)?;
+            Ok(())
+        }
+        other => run_repo_cli(other).await,
+    }
+}
+
+fn collect_cli_args() -> Vec<String> {
+    #[cfg(test)]
+    {
+        Vec::new()
+    }
+    #[cfg(not(test))]
+    {
+        std::env::args().skip(1).collect()
+    }
+}
+
+fn parse_cli_command(args: &[String]) -> Result<CliCommand, AppError> {
+    if args.is_empty() {
+        return Ok(CliCommand::Serve);
     }
 
-    let registry = registry::RepoRegistry::new(config.registry_file()).await?;
-    let state = AppState::new(config, registry);
+    match args[0].as_str() {
+        "serve" => {
+            if args.len() == 1 {
+                Ok(CliCommand::Serve)
+            } else {
+                Err(cli_usage_error("unexpected arguments for `serve`"))
+            }
+        }
+        "repo" => parse_repo_subcommand(&args[1..]),
+        "help" | "--help" | "-h" => Ok(CliCommand::Help),
+        _ => Err(cli_usage_error("unknown command")),
+    }
+}
+
+fn parse_repo_subcommand(args: &[String]) -> Result<CliCommand, AppError> {
+    if args.is_empty() {
+        return Err(cli_usage_error("missing repo subcommand"));
+    }
+
+    let subcommand = args[0].as_str();
+    let mut url: Option<String> = None;
+    let mut name: Option<String> = None;
+    let mut index = 1usize;
+
+    while index < args.len() {
+        match args[index].as_str() {
+            "--url" | "-u" => {
+                index += 1;
+                if index >= args.len() {
+                    return Err(cli_usage_error("missing value for `--url`"));
+                }
+                url = Some(args[index].clone());
+            }
+            "--name" | "-n" => {
+                index += 1;
+                if index >= args.len() {
+                    return Err(cli_usage_error("missing value for `--name`"));
+                }
+                name = Some(args[index].clone());
+            }
+            "--help" | "-h" => return Ok(CliCommand::Help),
+            _ => return Err(cli_usage_error("unknown argument")),
+        }
+        index += 1;
+    }
+
+    match subcommand {
+        "add" => {
+            let repo_url = url.ok_or_else(|| cli_usage_error("`repo add` requires `--url`"))?;
+            Ok(CliCommand::RepoAdd {
+                url: repo_url,
+                name,
+            })
+        }
+        "remove" => {
+            let repo_name =
+                name.ok_or_else(|| cli_usage_error("`repo remove` requires `--name`"))?;
+            Ok(CliCommand::RepoRemove { name: repo_name })
+        }
+        "fetch" => {
+            let repo_name =
+                name.ok_or_else(|| cli_usage_error("`repo fetch` requires `--name`"))?;
+            Ok(CliCommand::RepoFetch { name: repo_name })
+        }
+        "list" => {
+            if url.is_some() || name.is_some() {
+                Err(cli_usage_error(
+                    "`repo list` does not accept `--url` or `--name`",
+                ))
+            } else {
+                Ok(CliCommand::RepoList)
+            }
+        }
+        _ => Err(cli_usage_error("unknown repo subcommand")),
+    }
+}
+
+fn cli_usage_error(message: &str) -> AppError {
+    AppError::InvalidRequest(format!("{message}\n\n{CLI_USAGE}"))
+}
+
+async fn run_server() -> Result<(), AppError> {
+    let state = load_app_state().await?;
     maybe_launch_caddy(&state.config);
 
     if state.config.fetch.enabled {
@@ -38,6 +165,154 @@ async fn main() -> Result<(), AppError> {
     serve_http(listener, app)
         .await
         .map_err(|err| AppError::IoError(err.to_string()))
+}
+
+async fn load_app_state() -> Result<AppState, AppError> {
+    let config = AppConfig::load()?;
+    std::fs::create_dir_all(config.repos_dir())?;
+    if let Some(parent) = config.registry_file().parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let registry = registry::RepoRegistry::new(config.registry_file()).await?;
+    Ok(AppState::new(config, registry))
+}
+
+async fn run_repo_cli(command: CliCommand) -> Result<(), AppError> {
+    let state = load_app_state().await?;
+
+    match command {
+        CliCommand::RepoAdd { url, name } => repo_add_cli(state, url, name).await,
+        CliCommand::RepoRemove { name } => repo_remove_cli(state, name).await,
+        CliCommand::RepoFetch { name } => repo_fetch_cli(state, name).await,
+        CliCommand::RepoList => repo_list_cli(state).await,
+        CliCommand::Serve | CliCommand::Help => Ok(()),
+    }
+}
+
+async fn repo_add_cli(state: AppState, url: String, name: Option<String>) -> Result<(), AppError> {
+    let repo_name = git::derive_repo_name(&url, name.as_deref())?;
+    let local_path = git::repo_disk_path(&state.config.repos_dir(), &repo_name);
+    clone_or_fetch_repo_cli(
+        state.config.clone(),
+        local_path.clone(),
+        url.clone(),
+        local_path.exists(),
+    )
+    .await?;
+    let saved = upsert_repo_info_cli(state, repo_name, url, local_path).await?;
+    write_json_stdout(&saved)
+}
+
+async fn repo_remove_cli(state: AppState, name: String) -> Result<(), AppError> {
+    let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
+    state.registry.remove(&name).await?;
+    if local_path.exists() {
+        spawn_blocking(move || std::fs::remove_dir_all(local_path))
+            .await
+            .map_err(join_error)?
+            .map_err(AppError::from)?;
+    }
+    write_json_stdout(&json!({ "removed": name }))
+}
+
+async fn repo_fetch_cli(state: AppState, name: String) -> Result<(), AppError> {
+    let existing = state.registry.get(&name).await?;
+    let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
+    clone_or_fetch_repo_cli(
+        state.config.clone(),
+        local_path.clone(),
+        existing.url.clone(),
+        local_path.exists(),
+    )
+    .await?;
+    let saved = upsert_repo_info_cli(state, name, existing.url, local_path).await?;
+    write_json_stdout(&saved)
+}
+
+async fn repo_list_cli(state: AppState) -> Result<(), AppError> {
+    let repos = state.registry.list().await?;
+    write_json_stdout(&repos)
+}
+
+async fn clone_or_fetch_repo_cli(
+    config: std::sync::Arc<AppConfig>,
+    local_path: std::path::PathBuf,
+    url: String,
+    already_exists: bool,
+) -> Result<(), AppError> {
+    let timeout_duration = Duration::from_secs(config.git.clone_timeout_secs);
+    let config_for_task = config.clone();
+    let local_path_for_task = local_path.clone();
+    let url_for_task = url.clone();
+    let task = spawn_blocking(move || {
+        if already_exists {
+            git::clone::fetch_repo(&local_path_for_task, &url_for_task, &config_for_task)
+        } else {
+            git::clone::clone_repo(&url_for_task, &local_path_for_task, &config_for_task)
+                .map(|_| ())
+        }
+    });
+
+    let outcome = tokio::time::timeout(timeout_duration, task)
+        .await
+        .map_err(|_| {
+            AppError::CloneError(format!(
+                "git operation timed out after {}s",
+                config.git.clone_timeout_secs
+            ))
+        })?;
+    outcome.map_err(join_error)?
+}
+
+async fn upsert_repo_info_cli(
+    state: AppState,
+    name: String,
+    url: String,
+    local_path: std::path::PathBuf,
+) -> Result<RepoInfo, AppError> {
+    let (default_branch, size_kb) = spawn_blocking(move || {
+        let repo = git::clone::open_bare_repo(&local_path)?;
+        let default_branch = git::clone::default_branch(&repo)?;
+        let size_kb = git::clone::repo_size_kb(&local_path)?;
+        Ok::<(String, u64), AppError>((default_branch, size_kb))
+    })
+    .await
+    .map_err(join_error)??;
+
+    let saved = state
+        .registry
+        .upsert(RepoInfo {
+            name,
+            url: url.clone(),
+            description: None,
+            default_branch,
+            last_fetched: Some(Utc::now()),
+            size_kb,
+            source: git::detect_repo_source(&url),
+        })
+        .await?;
+    Ok(saved)
+}
+
+fn write_json_stdout<T: serde::Serialize>(value: &T) -> Result<(), AppError> {
+    let mut stdout = std::io::stdout();
+    serde_json::to_writer_pretty(&mut stdout, value)?;
+    use std::io::Write;
+    stdout.write_all(b"\n")?;
+    Ok(())
+}
+
+fn write_stdout(value: &str) -> Result<(), AppError> {
+    use std::io::Write;
+    let mut stdout = std::io::stdout();
+    stdout.write_all(value.as_bytes())?;
+    stdout.write_all(b"\n")?;
+    Ok(())
+}
+
+fn join_error(err: tokio::task::JoinError) -> AppError {
+    AppError::IoError(format!("blocking task join error: {err}"))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -291,6 +566,73 @@ mod tests {
             branding: BrandingConfig::default(),
             caddy: CaddyConfig::default(),
         }
+    }
+
+    fn parse_args(values: &[&str]) -> Result<CliCommand, AppError> {
+        let args = values
+            .iter()
+            .map(|value| value.to_string())
+            .collect::<Vec<_>>();
+        parse_cli_command(&args)
+    }
+
+    #[test]
+    fn parse_cli_defaults_to_serve() {
+        let command = parse_args(&[]).expect("default command");
+        assert_eq!(command, CliCommand::Serve);
+    }
+
+    #[test]
+    fn parse_cli_parses_repo_add() {
+        let command = parse_args(&["repo", "add", "--url", "https://example.com/repo.git"])
+            .expect("repo add");
+        assert_eq!(
+            command,
+            CliCommand::RepoAdd {
+                url: "https://example.com/repo.git".to_string(),
+                name: None,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_cli_parses_repo_add_with_alias() {
+        let command = parse_args(&[
+            "repo",
+            "add",
+            "--url",
+            "https://example.com/repo.git",
+            "--name",
+            "demo",
+        ])
+        .expect("repo add with alias");
+        assert_eq!(
+            command,
+            CliCommand::RepoAdd {
+                url: "https://example.com/repo.git".to_string(),
+                name: Some("demo".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_cli_requires_repo_add_url() {
+        let err = parse_args(&["repo", "add"]).expect_err("missing url should fail");
+        assert!(err.to_string().contains("requires `--url`"));
+    }
+
+    #[test]
+    fn parse_cli_parses_repo_remove_and_list() {
+        let remove = parse_args(&["repo", "remove", "--name", "demo"]).expect("repo remove");
+        assert_eq!(
+            remove,
+            CliCommand::RepoRemove {
+                name: "demo".to_string(),
+            }
+        );
+
+        let list = parse_args(&["repo", "list"]).expect("repo list");
+        assert_eq!(list, CliCommand::RepoList);
     }
 
     #[test]
