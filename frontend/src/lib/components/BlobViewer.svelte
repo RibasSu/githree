@@ -12,39 +12,71 @@
     refName?: string;
   }
 
+  type RenderMode = 'code' | 'markdown' | 'binary' | 'truncated';
+
+  const MAX_RENDERABLE_LINES = 20_000;
+
   let { blob, filePath, rawUrl, repo = '', refName = '' }: Props = $props();
   let highlightedHtml = $state('');
   let markdownHtml = $state('');
   let plainContent = $state('');
   let renderError = $state<string | null>(null);
+  let renderMode = $state<RenderMode>('code');
 
-  const isImage = $derived(Boolean(blob.mime && blob.mime.startsWith('image/')));
-  const isMarkdown = $derived(
-    blob.language === 'markdown' ||
-      filePath.toLowerCase().endsWith('.md') ||
-      filePath.toLowerCase().endsWith('.markdown')
-  );
   const lineCount = $derived(
     plainContent.length > 0 ? plainContent.split('\n').length : 0
   );
 
   $effect(() => {
-    void renderBlob();
+    const snapshot = {
+      content: blob.content,
+      encoding: blob.encoding,
+      size: blob.size,
+      language: blob.language,
+      isBinary: blob.is_binary,
+      isTruncated: blob.is_truncated,
+      truncatedReason: blob.truncated_reason || '',
+      filePath
+    };
+    void renderBlob(snapshot);
   });
 
-  async function renderBlob() {
+  async function renderBlob(snapshot: {
+    content: string;
+    encoding: string;
+    size: number;
+    language: string;
+    isBinary: boolean;
+    isTruncated: boolean;
+    truncatedReason: string;
+    filePath: string;
+  }) {
     renderError = null;
     highlightedHtml = '';
     markdownHtml = '';
     plainContent = '';
 
-    if (blob.is_binary) {
+    if (snapshot.isTruncated) {
+      renderMode = 'truncated';
+      renderError = snapshot.truncatedReason || 'File is too large to render in the browser.';
       return;
     }
 
-    plainContent = decodeText(blob.content, blob.encoding);
+    if (snapshot.isBinary) {
+      renderMode = 'binary';
+      return;
+    }
 
-    if (isMarkdown) {
+    plainContent = decodeText(snapshot.content, snapshot.encoding);
+
+    if (plainContent.split('\n').length > MAX_RENDERABLE_LINES) {
+      renderMode = 'truncated';
+      renderError = `File has more than ${MAX_RENDERABLE_LINES} lines. Download the raw file to inspect it.`;
+      return;
+    }
+
+    if (isMarkdownFile(snapshot.filePath, snapshot.language)) {
+      renderMode = 'markdown';
       try {
         const rendered = await marked.parse(plainContent);
         const rewritten = rewriteMarkdownLinks(rendered);
@@ -56,11 +88,14 @@
       return;
     }
 
+    renderMode = 'code';
     try {
-      highlightedHtml = await codeToHtml(plainContent, {
-        lang: blob.language || 'text',
+      const html = await codeToHtml(plainContent, {
+        lang: snapshot.language || 'text',
         theme: 'github-dark'
       });
+
+      highlightedHtml = html.trim().length > 0 ? html : `<pre>${escapeHtml(plainContent)}</pre>`;
     } catch {
       renderError = 'Falling back to plain text because syntax highlighting failed.';
       highlightedHtml = `<pre>${escapeHtml(plainContent)}</pre>`;
@@ -70,7 +105,9 @@
   function decodeText(content: string, encoding: string): string {
     if (encoding === 'base64' && typeof window !== 'undefined') {
       try {
-        return atob(content);
+        const binary = atob(content);
+        const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
       } catch {
         return content;
       }
@@ -120,7 +157,7 @@
         .filter((segment) => segment.length > 0)
         .map((segment) => encodeURIComponent(segment))
         .join('/');
-      const suffix = hashFragment ? `#${encodeURIComponent(hashFragment)}` : '';
+      const suffix = hashFragment ? `#${hashFragment}` : '';
 
       anchor.setAttribute(
         'href',
@@ -134,6 +171,19 @@
   function isExternalHref(href: string): boolean {
     return /^(https?:|mailto:|tel:|data:)/i.test(href);
   }
+
+  function isMarkdownFile(path: string, language: string): boolean {
+    const lowered = path.toLowerCase();
+    return (
+      language === 'markdown' ||
+      lowered.endsWith('.md') ||
+      lowered.endsWith('.markdown')
+    );
+  }
+
+  function isImageBlob(value: BlobResponse): boolean {
+    return Boolean(value.mime && value.mime.startsWith('image/'));
+  }
 </script>
 
 <section class="card-surface overflow-hidden">
@@ -145,7 +195,12 @@
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <button class="btn" onclick={() => navigator.clipboard.writeText(plainContent)} type="button">
+      <button
+        class="btn"
+        disabled={plainContent.length === 0}
+        onclick={() => navigator.clipboard.writeText(plainContent)}
+        type="button"
+      >
         Copy
       </button>
       <a class="btn btn-primary" href={rawUrl}>Download raw</a>
@@ -153,9 +208,16 @@
     </div>
   </header>
 
-  {#if blob.is_binary}
+  {#if renderMode === 'truncated'}
+    <div class="space-y-3 p-6">
+      <p class="text-sm text-[#d29922]">{renderError || 'This file is too large to display in the browser.'}</p>
+      <div>
+        <a class="btn btn-primary" href={rawUrl}>Download raw file</a>
+      </div>
+    </div>
+  {:else if renderMode === 'binary'}
     <div class="p-6">
-      {#if isImage}
+      {#if isImageBlob(blob) && blob.content.length > 0}
         <img
           alt={`Preview for ${filePath}`}
           class="max-h-[28rem] w-auto rounded-md border gh-divider bg-[#0d1117]"
@@ -167,25 +229,24 @@
         </p>
       {/if}
     </div>
+  {:else if renderMode === 'markdown'}
+    <article class="github-markdown p-5">
+      {@html markdownHtml}
+    </article>
   {:else}
-    {#if isMarkdown}
-      <article class="github-markdown p-5">
-        {@html markdownHtml}
-      </article>
-    {:else}
-      <div class="grid grid-cols-[56px_1fr] overflow-x-auto bg-[#0d1117] font-mono text-xs">
-        <div aria-hidden="true" class="select-none border-r gh-divider px-3 py-4 text-right gh-muted">
-          {#each lineNumbers(lineCount) as lineNo}
-            <div class="leading-6">{lineNo}</div>
-          {/each}
-        </div>
-        <div class="p-4 text-[#c9d1d9]">
-          {@html highlightedHtml}
-        </div>
+    <div class="grid grid-cols-[56px_1fr] overflow-x-auto bg-[#0d1117] font-mono text-xs">
+      <div aria-hidden="true" class="select-none border-r gh-divider px-3 py-4 text-right gh-muted">
+        {#each lineNumbers(lineCount) as lineNo}
+          <div class="leading-6">{lineNo}</div>
+        {/each}
       </div>
-    {/if}
-    {#if renderError}
-      <div class="border-t gh-divider px-4 py-2 text-xs text-[#d29922]">{renderError}</div>
-    {/if}
+      <div class="p-4 text-[#c9d1d9]">
+        {@html highlightedHtml}
+      </div>
+    </div>
+  {/if}
+
+  {#if renderError && renderMode !== 'truncated'}
+    <div class="border-t gh-divider px-4 py-2 text-xs text-[#d29922]">{renderError}</div>
   {/if}
 </section>

@@ -53,6 +53,8 @@ pub struct BlobResponse {
     pub language: String,
     pub is_binary: bool,
     pub mime: Option<String>,
+    pub is_truncated: bool,
+    pub truncated_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,6 +111,10 @@ pub struct CommitDetail {
     pub parents: Vec<String>,
     pub stats: DiffStats,
     pub diffs: Vec<FileDiff>,
+    pub is_truncated: bool,
+    pub truncated_reason: Option<String>,
+    pub displayed_file_count: usize,
+    pub displayed_line_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

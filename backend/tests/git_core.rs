@@ -49,11 +49,13 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
     let readme = git::browse::read_blob(&local_path, "main", "README.md").expect("read readme");
     assert_eq!(readme.encoding, "utf8");
     assert!(!readme.is_binary);
+    assert!(!readme.is_truncated);
     assert_eq!(readme.language, "markdown");
     assert!(readme.content.contains("Sample Repo"));
 
     let binary = git::browse::read_blob(&local_path, "main", "binary.bin").expect("read binary");
     assert!(binary.is_binary);
+    assert!(!binary.is_truncated);
     assert_eq!(binary.encoding, "base64");
     let decoded = STANDARD
         .decode(binary.content)
@@ -121,6 +123,34 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
     let fetched_detail = git::browse::commit_detail(&local_path, &new_hash)
         .expect("commit detail for fetched commit");
     assert_eq!(fetched_detail.commit.hash, new_hash);
+
+    let huge_content = "line-for-large-diff-and-blob-limits\n".repeat(40_000);
+    let huge_hash = fixture.add_remote_commit(
+        "huge/very-large.txt",
+        huge_content.as_bytes(),
+        "feat: add very large text fixture",
+    );
+    git::clone::fetch_repo(&local_path, &fixture.remote_url(), &config)
+        .expect("fetch large commit");
+
+    let huge_blob = git::browse::read_blob(
+        &local_path,
+        "refs/remotes/origin/main",
+        "huge/very-large.txt",
+    )
+    .expect("read huge blob");
+    assert!(!huge_blob.is_binary);
+    assert!(huge_blob.is_truncated);
+    assert!(huge_blob.content.is_empty());
+    assert!(huge_blob.truncated_reason.is_some());
+
+    let huge_detail =
+        git::browse::commit_detail(&local_path, &huge_hash).expect("commit detail for huge commit");
+    assert!(huge_detail.is_truncated);
+    assert!(huge_detail.truncated_reason.is_some());
+    assert!(huge_detail.displayed_file_count > 0);
+    assert!(huge_detail.displayed_line_count > 0);
+    assert!(huge_detail.displayed_line_count < huge_content.lines().count());
 }
 
 #[test]

@@ -5,8 +5,8 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use chrono::{DateTime, Utc};
 use git2::{
-    Commit, DiffDelta, DiffHunk as GitDiffHunk, DiffLine as GitDiffLine, DiffOptions, ObjectType,
-    Oid, Repository,
+    Commit, DiffDelta, DiffHunk as GitDiffHunk, DiffLine as GitDiffLine, DiffOptions, ErrorCode,
+    ObjectType, Oid, Repository,
 };
 
 use crate::error::AppError;
@@ -14,6 +14,11 @@ use crate::git::{
     BlobResponse, CommitDetail, CommitInfo, DiffHunk, DiffLine, DiffStats, FileDiff,
     ReadmeResponse, TreeEntry, detect_language,
 };
+
+const MAX_RENDERABLE_TEXT_BYTES: usize = 512 * 1024;
+const MAX_INLINE_BINARY_BYTES: usize = 5 * 1024 * 1024;
+const MAX_DIFF_FILES: usize = 300;
+const MAX_DIFF_LINES: usize = 20_000;
 
 pub struct RawFile {
     pub content: Vec<u8>,
@@ -121,6 +126,22 @@ pub fn read_blob(local_path: &Path, ref_name: &str, path: &str) -> Result<BlobRe
     let language = detect_language(path);
 
     if is_binary {
+        if bytes.len() > MAX_INLINE_BINARY_BYTES {
+            return Ok(BlobResponse {
+                content: String::new(),
+                encoding: "base64".to_string(),
+                size: bytes.len(),
+                language,
+                is_binary: true,
+                mime,
+                is_truncated: true,
+                truncated_reason: Some(format!(
+                    "Binary file is too large to preview in the browser ({} bytes limit).",
+                    MAX_INLINE_BINARY_BYTES
+                )),
+            });
+        }
+
         return Ok(BlobResponse {
             content: STANDARD.encode(bytes),
             encoding: "base64".to_string(),
@@ -128,6 +149,24 @@ pub fn read_blob(local_path: &Path, ref_name: &str, path: &str) -> Result<BlobRe
             language,
             is_binary: true,
             mime,
+            is_truncated: false,
+            truncated_reason: None,
+        });
+    }
+
+    if bytes.len() > MAX_RENDERABLE_TEXT_BYTES {
+        return Ok(BlobResponse {
+            content: String::new(),
+            encoding: "utf8".to_string(),
+            size: bytes.len(),
+            language,
+            is_binary: false,
+            mime,
+            is_truncated: true,
+            truncated_reason: Some(format!(
+                "File is too large to display ({} bytes limit). Download the raw file.",
+                MAX_RENDERABLE_TEXT_BYTES
+            )),
         });
     }
 
@@ -148,6 +187,8 @@ pub fn read_blob(local_path: &Path, ref_name: &str, path: &str) -> Result<BlobRe
         language,
         is_binary: false,
         mime,
+        is_truncated: false,
+        truncated_reason: None,
     })
 }
 
@@ -280,8 +321,22 @@ pub fn commit_detail(local_path: &Path, hash: &str) -> Result<CommitDetail, AppE
     let file_diffs: RefCell<Vec<FileDiff>> = RefCell::new(Vec::new());
     let current_file_index: Cell<Option<usize>> = Cell::new(None);
     let current_hunk_index: Cell<Option<usize>> = Cell::new(None);
-    diff.foreach(
+    let displayed_line_count: Cell<usize> = Cell::new(0);
+    let is_truncated: Cell<bool> = Cell::new(false);
+    let truncated_reason: RefCell<Option<String>> = RefCell::new(None);
+    let foreach_result = diff.foreach(
         &mut |delta, _| {
+            let current_count = file_diffs.borrow().len();
+            if current_count >= MAX_DIFF_FILES {
+                is_truncated.set(true);
+                if truncated_reason.borrow().is_none() {
+                    *truncated_reason.borrow_mut() = Some(format!(
+                        "Diff is too large to display completely. Showing at most {MAX_DIFF_FILES} files."
+                    ));
+                }
+                return false;
+            }
+
             let mut diffs = file_diffs.borrow_mut();
             diffs.push(FileDiff {
                 old_path: delta
@@ -312,6 +367,16 @@ pub fn commit_detail(local_path: &Path, hash: &str) -> Result<CommitDetail, AppE
             true
         }),
         Some(&mut |_delta, _hunk, line| {
+            if displayed_line_count.get() >= MAX_DIFF_LINES {
+                is_truncated.set(true);
+                if truncated_reason.borrow().is_none() {
+                    *truncated_reason.borrow_mut() = Some(format!(
+                        "Diff is too large to display completely. Showing at most {MAX_DIFF_LINES} changed lines."
+                    ));
+                }
+                return false;
+            }
+
             if let (Some(file_idx), Some(hunk_idx)) =
                 (current_file_index.get(), current_hunk_index.get())
             {
@@ -320,11 +385,17 @@ pub fn commit_detail(local_path: &Path, hash: &str) -> Result<CommitDetail, AppE
                     && let Some(hunk) = file_diff.hunks.get_mut(hunk_idx)
                 {
                     hunk.lines.push(map_line(&line));
+                    displayed_line_count.set(displayed_line_count.get().saturating_add(1));
                 }
             }
             true
         }),
-    )?;
+    );
+    if let Err(error) = foreach_result
+        && error.code() != ErrorCode::User
+    {
+        return Err(error.into());
+    }
 
     let file_diffs = file_diffs.into_inner();
 
@@ -340,7 +411,11 @@ pub fn commit_detail(local_path: &Path, hash: &str) -> Result<CommitDetail, AppE
             insertions: stats.insertions(),
             deletions: stats.deletions(),
         },
+        displayed_file_count: file_diffs.len(),
+        displayed_line_count: displayed_line_count.get(),
         diffs: file_diffs,
+        is_truncated: is_truncated.get(),
+        truncated_reason: truncated_reason.into_inner(),
     })
 }
 

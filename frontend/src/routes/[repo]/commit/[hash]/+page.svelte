@@ -80,6 +80,15 @@
       <span class="text-[#f85149]">-{detail.stats.deletions}</span>
     </div>
 
+    {#if detail.is_truncated}
+      <div class="card-surface border-[#9e6a03] bg-[#3d2d00] px-4 py-3 text-sm text-[#f3c969]">
+        {detail.truncated_reason || 'Diff is too large to display completely.'}
+        <div class="mt-1 text-xs text-[#e6b450]">
+          Displaying {detail.displayed_file_count} files and {detail.displayed_line_count} changed lines.
+        </div>
+      </div>
+    {/if}
+
     <section class="space-y-3">
       {#each detail.diffs as file}
         <article class="card-surface overflow-hidden">

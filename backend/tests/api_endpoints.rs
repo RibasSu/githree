@@ -69,6 +69,7 @@ async fn api_repository_lifecycle_and_browsing_routes_work() {
     let blob_payload: BlobResponse = blob.json();
     assert_eq!(blob_payload.encoding, "utf8");
     assert!(blob_payload.content.contains("Sample Repo"));
+    assert!(!blob_payload.is_truncated);
 
     let binary_blob = server
         .get("/api/repos/sample-repo/blob")

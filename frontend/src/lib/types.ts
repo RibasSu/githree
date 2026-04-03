@@ -33,6 +33,8 @@ export interface BlobResponse {
   language: string;
   is_binary: boolean;
   mime?: string | null;
+  is_truncated: boolean;
+  truncated_reason?: string | null;
 }
 
 export interface ReadmeResponse {
@@ -82,6 +84,10 @@ export interface CommitDetail {
   parents: string[];
   stats: DiffStats;
   diffs: FileDiff[];
+  is_truncated: boolean;
+  truncated_reason?: string | null;
+  displayed_file_count: number;
+  displayed_line_count: number;
 }
 
 export interface ApiError {
