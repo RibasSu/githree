@@ -3,9 +3,9 @@ host = "0.0.0.0"
 port = 3001
 
 [storage]
-repos_dir = "./data/repos"
-registry_file = "./data/repos.json"
-static_dir = "./static"
+repos_dir = "../data/repos"
+registry_file = "../data/repos.json"
+static_dir = "../static"
 
 [git]
 clone_timeout_secs = 120
@@ -32,7 +32,7 @@ domain = "githree.org"
 [caddy]
 enabled = false
 command = "caddy"
-config_file = "./config/Caddyfile"
+config_file = "./Caddyfile"
 adapter = "caddyfile"
 args = []
 # working_dir = "."

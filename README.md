@@ -80,9 +80,9 @@ host = "0.0.0.0"
 port = 3001
 
 [storage]
-repos_dir = "./data/repos"
-registry_file = "./data/repos.json"
-static_dir = "./static"
+repos_dir = "../data/repos"
+registry_file = "../data/repos.json"
+static_dir = "../static"
 
 [git]
 clone_timeout_secs = 120
@@ -109,11 +109,13 @@ domain = "githree.org"
 [caddy]
 enabled = false
 command = "caddy"
-config_file = "./config/Caddyfile"
+config_file = "./Caddyfile"
 adapter = "caddyfile"
 args = []
 # working_dir = "."
 ```
+
+Paths in the config file are resolved relative to the config file directory (except absolute paths and `~/...` paths, which are preserved/expanded).
 
 When `web_repo_management = false`, `POST /api/repos`, `DELETE /api/repos/{name}`, and `POST /api/repos/{name}/fetch` are blocked from the web API and the frontend switches to CLI-command generation for repository add/remove operations.
 

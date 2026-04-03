@@ -164,10 +164,9 @@ impl Default for CaddyConfig {
 
 impl AppConfig {
     pub fn load() -> Result<Self, AppError> {
-        let config_path =
-            env::var("GITHREE_CONFIG").unwrap_or_else(|_| "config/default.toml".to_string());
+        let config_path = resolve_config_path();
         let settings = Config::builder()
-            .add_source(File::from(Path::new(&config_path)).required(false))
+            .add_source(File::from(config_path.as_path()).required(false))
             .build()
             .map_err(|e| AppError::InvalidRequest(format!("failed to load config: {e}")))?;
 
@@ -175,15 +174,17 @@ impl AppConfig {
             .try_deserialize()
             .map_err(|e| AppError::InvalidRequest(format!("invalid config: {e}")))?;
 
-        cfg.storage.repos_dir = expand_tilde(&cfg.storage.repos_dir);
-        cfg.storage.registry_file = expand_tilde(&cfg.storage.registry_file);
-        cfg.storage.static_dir = expand_tilde(&cfg.storage.static_dir);
-        cfg.git.ssh_private_key_path = expand_tilde(&cfg.git.ssh_private_key_path);
+        let config_dir = resolve_config_dir(config_path.as_path());
+
+        cfg.storage.repos_dir = resolve_path(&cfg.storage.repos_dir, config_dir.as_deref());
+        cfg.storage.registry_file = resolve_path(&cfg.storage.registry_file, config_dir.as_deref());
+        cfg.storage.static_dir = resolve_path(&cfg.storage.static_dir, config_dir.as_deref());
+        cfg.git.ssh_private_key_path = resolve_path(&cfg.git.ssh_private_key_path, None);
         if let Some(config_file) = cfg.caddy.config_file.as_ref() {
-            cfg.caddy.config_file = Some(expand_tilde(config_file));
+            cfg.caddy.config_file = Some(resolve_path(config_file, config_dir.as_deref()));
         }
         if let Some(working_dir) = cfg.caddy.working_dir.as_ref() {
-            cfg.caddy.working_dir = Some(expand_tilde(working_dir));
+            cfg.caddy.working_dir = Some(resolve_path(working_dir, config_dir.as_deref()));
         }
         if let Ok(value) = env::var("GITHREE_WEB_REPO_MANAGEMENT") {
             cfg.features.web_repo_management =
@@ -212,7 +213,7 @@ impl AppConfig {
             cfg.caddy.config_file = if trimmed.is_empty() {
                 None
             } else {
-                Some(expand_tilde(trimmed))
+                Some(resolve_path(trimmed, config_dir.as_deref()))
             };
         }
         if let Ok(value) = env::var("GITHREE_CADDY_WORKING_DIR") {
@@ -220,7 +221,7 @@ impl AppConfig {
             cfg.caddy.working_dir = if trimmed.is_empty() {
                 None
             } else {
-                Some(expand_tilde(trimmed))
+                Some(resolve_path(trimmed, config_dir.as_deref()))
             };
         }
         if let Ok(value) = env::var("GITHREE_FETCH_INTERVAL") {
@@ -320,6 +321,47 @@ fn parse_sync_interval(value: &str) -> Result<Duration, AppError> {
         }
     };
     Ok(Duration::from_secs(seconds))
+}
+
+fn resolve_config_path() -> PathBuf {
+    if let Ok(path) = env::var("GITHREE_CONFIG") {
+        return PathBuf::from(expand_tilde(&path));
+    }
+
+    let preferred = PathBuf::from("config/default.toml");
+    if preferred.exists() {
+        return preferred;
+    }
+
+    let fallback = PathBuf::from("../config/default.toml");
+    if fallback.exists() {
+        return fallback;
+    }
+
+    preferred
+}
+
+fn resolve_config_dir(config_path: &Path) -> Option<PathBuf> {
+    if !config_path.exists() {
+        return None;
+    }
+    let parent = config_path.parent()?;
+    if parent.is_absolute() {
+        return Some(parent.to_path_buf());
+    }
+    env::current_dir().ok().map(|cwd| cwd.join(parent))
+}
+
+fn resolve_path(path: &str, base_dir: Option<&Path>) -> String {
+    let expanded = expand_tilde(path);
+    let path_buf = PathBuf::from(&expanded);
+    if path_buf.is_absolute() {
+        return expanded;
+    }
+    if let Some(base) = base_dir {
+        return base.join(path_buf).to_string_lossy().to_string();
+    }
+    expanded
 }
 
 fn expand_tilde(path: &str) -> String {
@@ -513,6 +555,95 @@ args = []
             env::remove_var("GITHREE_CADDY_ENABLED");
             env::remove_var("GITHREE_CADDY_WORKING_DIR");
         }
+    }
+
+    #[test]
+    fn app_config_load_resolves_storage_paths_relative_to_config_file() {
+        let _guard = env_guard();
+        let temp = tempdir().expect("tempdir");
+        let config_dir = temp.path().join("nested/config");
+        fs::create_dir_all(&config_dir).expect("create config directory");
+        let config_path = config_dir.join("githree.toml");
+        fs::write(
+            &config_path,
+            r#"
+[server]
+host = "127.0.0.1"
+port = 3111
+
+[storage]
+repos_dir = "../runtime/repos"
+registry_file = "../runtime/repos.json"
+static_dir = "../runtime/static"
+
+[git]
+clone_timeout_secs = 10
+fetch_on_request = true
+fetch_cooldown_secs = 1
+ssh_private_key_path = "~/.ssh/id_rsa"
+
+[fetch]
+enabled = false
+interval = "60s"
+
+[caddy]
+enabled = true
+command = "caddy"
+config_file = "./Caddyfile"
+adapter = "caddyfile"
+"#,
+        )
+        .expect("write config file");
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            env::set_var("GITHREE_CONFIG", &config_path);
+        }
+
+        let loaded = AppConfig::load().expect("load config");
+        assert_eq!(
+            loaded.storage.repos_dir,
+            config_dir
+                .join("../runtime/repos")
+                .to_string_lossy()
+                .to_string()
+        );
+        assert_eq!(
+            loaded.storage.registry_file,
+            config_dir
+                .join("../runtime/repos.json")
+                .to_string_lossy()
+                .to_string()
+        );
+        assert_eq!(
+            loaded.storage.static_dir,
+            config_dir
+                .join("../runtime/static")
+                .to_string_lossy()
+                .to_string()
+        );
+        assert_eq!(
+            loaded.caddy.config_file,
+            Some(config_dir.join("./Caddyfile").to_string_lossy().to_string())
+        );
+
+        // SAFETY: process env is globally mutable; this test serializes env access with a mutex.
+        unsafe {
+            env::remove_var("GITHREE_CONFIG");
+        }
+    }
+
+    #[test]
+    fn resolve_path_preserves_absolute_and_expands_relative() {
+        let base = PathBuf::from("/tmp/githree-config");
+        let resolved = resolve_path("./data/repos", Some(base.as_path()));
+        assert_eq!(
+            resolved,
+            base.join("./data/repos").to_string_lossy().to_string()
+        );
+
+        let absolute = resolve_path("/var/lib/githree/repos", Some(base.as_path()));
+        assert_eq!(absolute, "/var/lib/githree/repos".to_string());
     }
 
     #[test]
