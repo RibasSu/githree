@@ -8,17 +8,18 @@ Security fixes are generally applied to the default branch and the latest releas
 
 Please do not open public issues for security vulnerabilities.
 
-Instead, report privately by contacting the maintainers and include:
+Instead, report privately to one of the following:
+
+- `andre@ribassu.com`
+- `hi@smaia.dev`
+- `security@githree.org` (alias that forwards to both maintainers)
+
+Include:
 
 - affected component (backend/frontend/config/deployment)
 - clear reproduction steps
 - impact assessment
 - suggested fix (if available)
-
-If a direct contact channel is not yet configured, open a minimal issue stating:
-"I need a private security contact for responsible disclosure."
-
-We will provide a private channel and follow up.
 
 ## Response Process
 
