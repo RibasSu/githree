@@ -25,9 +25,8 @@
   let renderMode = $state<RenderMode>('code');
   let latestRenderJob = 0;
 
-  const lineCount = $derived(
-    plainContent.length > 0 ? plainContent.split('\n').length : 0
-  );
+  const displayContent = $derived(stripSingleTerminalNewline(plainContent));
+  const lineCount = $derived(displayContent.length > 0 ? displayContent.split('\n').length : 0);
 
   $effect(() => {
     const snapshot = {
@@ -87,6 +86,7 @@
 
     const decodedContent = decodeText(snapshot.content, snapshot.encoding);
     next.plainContent = decodedContent;
+    const highlightedContent = stripSingleTerminalNewline(decodedContent);
 
     if (decodedContent.split('\n').length > MAX_RENDERABLE_LINES) {
       next.renderMode = 'truncated';
@@ -120,16 +120,17 @@
 
     next.renderMode = 'code';
     try {
-      const html = await codeToHtml(decodedContent, {
+      const html = await codeToHtml(highlightedContent, {
         lang: snapshot.language || 'text',
         theme: 'github-dark'
       });
       if (renderJob !== latestRenderJob) return;
 
-      next.highlightedHtml = html.trim().length > 0 ? html : `<pre>${escapeHtml(decodedContent)}</pre>`;
+      next.highlightedHtml =
+        html.trim().length > 0 ? html : `<pre>${escapeHtml(highlightedContent)}</pre>`;
     } catch {
       next.renderError = 'Falling back to plain text because syntax highlighting failed.';
-      next.highlightedHtml = `<pre>${escapeHtml(decodedContent)}</pre>`;
+      next.highlightedHtml = `<pre>${escapeHtml(highlightedContent)}</pre>`;
     }
     applyRenderPayload(next, renderJob);
   }
@@ -158,6 +159,11 @@
 
   function lineNumbers(count: number): number[] {
     return Array.from({ length: count }, (_, index) => index + 1);
+  }
+
+  function stripSingleTerminalNewline(value: string): string {
+    if (!value.endsWith('\n')) return value;
+    return value.slice(0, -1);
   }
 
   function escapeHtml(value: string): string {

@@ -69,7 +69,7 @@
 <section class="space-y-4">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <h1 class="text-xl font-semibold text-[#f0f6fc]">Commit History</h1>
-    <BranchSelector onSelect={changeRef} refs={refs} selected={selectedRef || 'main'} />
+    <BranchSelector onSelect={changeRef} refs={refs} repoName={data.repo} selected={selectedRef || 'main'} />
   </div>
 
   <div class="flex flex-wrap items-center gap-2">

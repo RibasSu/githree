@@ -8,9 +8,10 @@
     selected: string;
     onSelect: (value: string) => void;
     compact?: boolean;
+    repoName?: string;
   }
 
-  let { refs, selected, onSelect, compact = false }: Props = $props();
+  let { refs, selected, onSelect, compact = false, repoName = '' }: Props = $props();
 
   let rootEl = $state<HTMLElement | null>(null);
   let open = $state(false);
@@ -33,6 +34,9 @@
 
   const hasAnyRefs = $derived(branches.length > 0 || tags.length > 0);
   const showViewAllBranches = $derived(activeTab === 'branches' && branches.length > 0);
+  const viewAllBranchesHref = $derived.by(() =>
+    repoName.length > 0 ? `/${repoName}/branches?ref=${encodeURIComponent(selected)}` : ''
+  );
 
   $effect(() => {
     if (refs?.tags.includes(selected) && !refs?.branches.includes(selected)) {
@@ -224,7 +228,13 @@
 
       {#if showViewAllBranches}
         <div class="gh-ref-footer">
-          <span>View all branches</span>
+          {#if viewAllBranchesHref.length > 0}
+            <a class="gh-ref-footer-link" href={viewAllBranchesHref} onclick={closeMenu}>
+              View all branches
+            </a>
+          {:else}
+            <span>View all branches</span>
+          {/if}
         </div>
       {/if}
     </div>

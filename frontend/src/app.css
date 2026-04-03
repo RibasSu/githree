@@ -311,6 +311,15 @@ a {
   background: #0d1117;
 }
 
+.gh-ref-footer-link {
+  display: block;
+  color: #f0f6fc;
+}
+
+.gh-ref-footer-link:hover {
+  text-decoration: underline;
+}
+
 .gh-go-to-file {
   display: inline-flex;
   min-width: min(100%, 270px);

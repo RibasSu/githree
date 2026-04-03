@@ -488,7 +488,7 @@
         <div class="card-surface overflow-visible">
           <div class="flex flex-wrap items-center justify-between gap-2 border-b gh-divider px-3 py-2">
             <div class="flex flex-wrap items-center gap-3">
-              <BranchSelector compact onSelect={changeRef} refs={refs} selected={selectedRef} />
+              <BranchSelector compact onSelect={changeRef} refs={refs} repoName={data.repo} selected={selectedRef} />
               <span class="gh-toolbar-stat">
                 <GitBranch size={14} />
                 {#if (refs?.branches.length ?? 0) === 1}
