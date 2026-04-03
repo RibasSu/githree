@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
@@ -12,6 +10,7 @@ use tracing::instrument;
 
 use crate::error::AppError;
 use crate::git::{self, BlobResponse, ReadmeResponse};
+use crate::handlers::sync::{ensure_repo_ready, join_error};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -38,7 +37,7 @@ pub async fn get_blob(
         .ref_name
         .unwrap_or_else(|| repo.default_branch.clone());
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
-    maybe_fetch_repo(state.clone(), local_path.clone(), repo.url.clone()).await?;
+    ensure_repo_ready(state.clone(), &name, local_path.clone(), repo.url.clone()).await?;
 
     let path = query.path.clone();
     let blob = spawn_blocking(move || git::browse::read_blob(&local_path, &ref_name, &path))
@@ -58,7 +57,7 @@ pub async fn get_readme(
         .ref_name
         .unwrap_or_else(|| repo.default_branch.clone());
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
-    maybe_fetch_repo(state.clone(), local_path.clone(), repo.url.clone()).await?;
+    ensure_repo_ready(state.clone(), &name, local_path.clone(), repo.url.clone()).await?;
 
     let readme = spawn_blocking(move || git::browse::read_readme(&local_path, &ref_name))
         .await
@@ -77,7 +76,7 @@ pub async fn get_raw(
         .ref_name
         .unwrap_or_else(|| repo.default_branch.clone());
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
-    maybe_fetch_repo(state.clone(), local_path.clone(), repo.url.clone()).await?;
+    ensure_repo_ready(state.clone(), &name, local_path.clone(), repo.url.clone()).await?;
 
     let path = query.path.clone();
     let raw = spawn_blocking(move || git::browse::read_raw(&local_path, &ref_name, &path))
@@ -98,22 +97,4 @@ pub async fn get_raw(
         ],
         Bytes::from(raw.content),
     ))
-}
-
-async fn maybe_fetch_repo(
-    state: AppState,
-    local_path: PathBuf,
-    url: String,
-) -> Result<(), AppError> {
-    if !state.config.git.fetch_on_request {
-        return Ok(());
-    }
-    let config = state.config.clone();
-    spawn_blocking(move || git::clone::fetch_repo(&local_path, &url, &config))
-        .await
-        .map_err(join_error)?
-}
-
-fn join_error(err: tokio::task::JoinError) -> AppError {
-    AppError::IoError(format!("blocking task join error: {err}"))
 }

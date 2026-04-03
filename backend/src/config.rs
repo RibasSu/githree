@@ -37,6 +37,7 @@ pub struct StorageConfig {
 pub struct GitConfig {
     pub clone_timeout_secs: u64,
     pub fetch_on_request: bool,
+    pub fetch_cooldown_secs: u64,
     pub ssh_private_key_path: String,
 }
 
@@ -83,6 +84,7 @@ impl Default for GitConfig {
         Self {
             clone_timeout_secs: 120,
             fetch_on_request: true,
+            fetch_cooldown_secs: 20,
             ssh_private_key_path: "~/.ssh/id_rsa".to_string(),
         }
     }

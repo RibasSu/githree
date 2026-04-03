@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use serde::Deserialize;
@@ -8,6 +6,7 @@ use tracing::instrument;
 
 use crate::error::AppError;
 use crate::git::{self, CommitDetail, CommitInfo};
+use crate::handlers::sync::{ensure_repo_ready, join_error};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -34,7 +33,7 @@ pub async fn list_commits(
     let limit = query.limit.unwrap_or(30).min(200);
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
 
-    maybe_fetch_repo(state.clone(), local_path.clone(), repo.url.clone()).await?;
+    ensure_repo_ready(state.clone(), &name, local_path.clone(), repo.url.clone()).await?;
 
     let commits = spawn_blocking(move || {
         git::browse::commit_history(&local_path, &ref_name, path_filter.as_deref(), skip, limit)
@@ -51,28 +50,10 @@ pub async fn get_commit_detail(
 ) -> Result<Json<CommitDetail>, AppError> {
     let repo = state.registry.get(&name).await?;
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
-    maybe_fetch_repo(state.clone(), local_path.clone(), repo.url.clone()).await?;
+    ensure_repo_ready(state.clone(), &name, local_path.clone(), repo.url.clone()).await?;
 
     let detail = spawn_blocking(move || git::browse::commit_detail(&local_path, &hash))
         .await
         .map_err(join_error)??;
     Ok(Json(detail))
-}
-
-async fn maybe_fetch_repo(
-    state: AppState,
-    local_path: PathBuf,
-    url: String,
-) -> Result<(), AppError> {
-    if !state.config.git.fetch_on_request {
-        return Ok(());
-    }
-    let config = state.config.clone();
-    spawn_blocking(move || git::clone::fetch_repo(&local_path, &url, &config))
-        .await
-        .map_err(join_error)?
-}
-
-fn join_error(err: tokio::task::JoinError) -> AppError {
-    AppError::IoError(format!("blocking task join error: {err}"))
 }

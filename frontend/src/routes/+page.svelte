@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import RepoCard from '$lib/components/RepoCard.svelte';
+  import ShimmerRows from '$lib/components/ShimmerRows.svelte';
   import { api } from '$lib/api';
   import type { RepoInfo } from '$lib/types';
 
@@ -82,9 +83,9 @@
 </script>
 
 <section class="space-y-6">
-  <div class="card-surface p-5">
-    <h1 class="text-xl font-semibold">Add a Repository</h1>
-    <p class="mt-1 text-sm text-white/70">
+  <div class="card-surface p-4">
+    <h1 class="text-lg font-semibold text-[#f0f6fc]">Add a Repository</h1>
+    <p class="mt-1 text-sm gh-muted">
       Paste any GitHub, GitLab, or self-hosted git URL (SSH or HTTPS).
     </p>
     <form class="mt-4 grid gap-3 md:grid-cols-[1fr_240px_auto]" onsubmit={submitRepo}>
@@ -101,18 +102,23 @@
   </div>
 
   <div class="flex flex-wrap items-center justify-between gap-3">
-    <h2 class="text-lg font-semibold">Registered Repositories</h2>
+    <h2 class="text-lg font-semibold text-[#f0f6fc]">Registered Repositories</h2>
     <input bind:value={search} class="input max-w-xs" placeholder="Search repositories" type="text" />
   </div>
 
-  {#if loading}
-    <p class="text-sm text-white/60">Loading repositories...</p>
+  {#if loading && repos.length === 0}
+    <ShimmerRows rows={6} />
   {:else if filteredRepos.length === 0}
-    <div class="card-surface p-6 text-sm text-white/60">
+    <div class="card-surface p-6 text-sm gh-muted">
       No repositories found. Add your first repository URL above.
     </div>
   {:else}
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div class="card-surface overflow-hidden">
+      <div class="grid grid-cols-[minmax(220px,1fr)_minmax(200px,1fr)_auto] gap-3 border-b gh-divider px-4 py-2 text-xs font-semibold uppercase tracking-wide gh-muted">
+        <span>Repository</span>
+        <span>Remote</span>
+        <span class="text-right">Actions</span>
+      </div>
       {#each filteredRepos as repo (repo.name)}
         <RepoCard {repo} onFetch={fetchRepo} onRemove={removeRepo} />
       {/each}

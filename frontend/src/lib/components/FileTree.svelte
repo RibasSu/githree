@@ -39,7 +39,7 @@
 
 <div aria-label="Repository file tree" class="card-surface overflow-hidden">
   <table class="w-full text-sm">
-    <thead class="bg-white/5 text-xs uppercase tracking-wide text-white/60">
+    <thead class="bg-[#161b22] text-xs uppercase tracking-wide gh-muted">
       <tr>
         <th class="px-4 py-3 text-left">Name</th>
         <th class="px-4 py-3 text-right">Size</th>
@@ -47,33 +47,33 @@
     </thead>
     <tbody>
       {#each sortedEntries as entry}
-        <tr class="border-t border-white/5 hover:bg-white/5 focus-within:bg-white/10">
+        <tr class="border-t gh-divider hover:bg-[#161b22] focus-within:bg-[#161b22]">
           <td class="px-4 py-3">
             <a
               aria-label={`Open ${entry.path}`}
-              class="flex items-center gap-2 rounded outline-none focus:ring-2 focus:ring-primary/60"
+              class="flex items-center gap-2 rounded-sm outline-none focus:ring-2 focus:ring-[#2f81f7]/70"
               href={hrefFor(entry)}
             >
               {#if entry.entry_type === 'tree'}
-                <Folder class="text-primary" size={16} />
+                <Folder class="text-[#8b949e]" size={16} />
               {:else if ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extension(entry.name))}
-                <ImageIcon class="text-white/70" size={16} />
+                <ImageIcon class="text-[#8b949e]" size={16} />
               {:else if ['zip', 'gz', 'tar'].includes(extension(entry.name))}
-                <FileArchive class="text-white/70" size={16} />
+                <FileArchive class="text-[#8b949e]" size={16} />
               {:else if ['md', 'txt'].includes(extension(entry.name))}
-                <FileText class="text-white/70" size={16} />
+                <FileText class="text-[#8b949e]" size={16} />
               {:else}
-                <FileCode2 class="text-white/70" size={16} />
+                <FileCode2 class="text-[#8b949e]" size={16} />
               {/if}
-              <span class="truncate">{entry.name}</span>
+              <span class="truncate text-[#c9d1d9] hover:underline">{entry.name}</span>
             </a>
           </td>
-          <td class="px-4 py-3 text-right text-white/50">{sizeLabel(entry.size)}</td>
+          <td class="px-4 py-3 text-right gh-muted">{sizeLabel(entry.size)}</td>
         </tr>
       {/each}
       {#if sortedEntries.length === 0}
-        <tr class="border-t border-white/5">
-          <td class="px-4 py-6 text-sm text-white/60" colspan="2">No entries found in this directory.</td>
+        <tr class="border-t gh-divider">
+          <td class="px-4 py-6 text-sm gh-muted" colspan="2">No entries found in this directory.</td>
         </tr>
       {/if}
     </tbody>

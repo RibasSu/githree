@@ -5,6 +5,7 @@ use tracing::instrument;
 
 use crate::error::AppError;
 use crate::git::{self, TreeEntry};
+use crate::handlers::sync::{ensure_repo_ready, join_error};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -27,7 +28,7 @@ pub async fn get_tree(
     let path = query.path.unwrap_or_default();
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
 
-    maybe_fetch_repo(state.clone(), local_path.clone(), repo.url.clone()).await?;
+    ensure_repo_ready(state.clone(), &name, local_path.clone(), repo.url.clone()).await?;
 
     let key = format!("{name}|{ref_name}|{path}");
     if let Some(cached) = state.tree_cache.get(&key).await {
@@ -39,22 +40,4 @@ pub async fn get_tree(
         .map_err(join_error)??;
     state.tree_cache.insert(key, entries.clone()).await;
     Ok(Json(entries))
-}
-
-async fn maybe_fetch_repo(
-    state: AppState,
-    local_path: std::path::PathBuf,
-    url: String,
-) -> Result<(), AppError> {
-    if !state.config.git.fetch_on_request {
-        return Ok(());
-    }
-    let config = state.config.clone();
-    spawn_blocking(move || git::clone::fetch_repo(&local_path, &url, &config))
-        .await
-        .map_err(join_error)?
-}
-
-fn join_error(err: tokio::task::JoinError) -> AppError {
-    AppError::IoError(format!("blocking task join error: {err}"))
 }

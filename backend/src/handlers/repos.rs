@@ -34,6 +34,8 @@ pub async fn add_repo(
 
     let info = build_repo_info(name, payload.url, local_path).await?;
     let saved = state.registry.upsert(info).await?;
+    state.tree_cache.invalidate_all();
+    state.fetch_guard_cache.invalidate_all();
     Ok(Json(saved))
 }
 
@@ -57,6 +59,8 @@ pub async fn delete_repo(
             .await
             .map_err(join_error)??;
     }
+    state.tree_cache.invalidate_all();
+    state.fetch_guard_cache.invalidate_all();
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -81,6 +85,7 @@ pub async fn fetch_repo(
     updated.description = existing.description.clone();
     let saved = state.registry.upsert(updated).await?;
     state.tree_cache.invalidate_all();
+    state.fetch_guard_cache.invalidate_all();
     Ok(Json(saved))
 }
 

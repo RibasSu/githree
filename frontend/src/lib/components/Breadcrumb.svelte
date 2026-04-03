@@ -26,18 +26,18 @@
   });
 </script>
 
-<nav aria-label="Breadcrumb" class="text-xs text-white/70">
+<nav aria-label="Breadcrumb" class="text-xs gh-muted">
   <ol class="flex flex-wrap items-center gap-2">
     <li>
-      <a class="hover:text-primary" href={`/${repo}?ref=${encodeURIComponent(refName)}`}>{repo}</a>
+      <a class="hover:text-[#2f81f7]" href={`/${repo}?ref=${encodeURIComponent(refName)}`}>{repo}</a>
     </li>
     {#each crumbs as crumb}
-      <li class="text-white/40">/</li>
+      <li class="text-[#6e7681]">/</li>
       <li>
         {#if crumb.isLast}
-          <span class="text-white">{crumb.name}</span>
+          <span class="text-[#c9d1d9]">{crumb.name}</span>
         {:else}
-          <a class="hover:text-primary" href={crumb.href}>{crumb.name}</a>
+          <a class="hover:text-[#2f81f7]" href={crumb.href}>{crumb.name}</a>
         {/if}
       </li>
     {/each}

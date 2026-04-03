@@ -13,6 +13,7 @@ use tracing::instrument;
 
 use crate::error::AppError;
 use crate::git::{self, ArchiveResponse};
+use crate::handlers::sync::{ensure_repo_ready, join_error};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -35,7 +36,7 @@ pub async fn get_archive(
     let format = query.format.unwrap_or_else(|| "tar.gz".to_string());
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
 
-    maybe_fetch_repo(state.clone(), local_path.clone(), repo.url.clone()).await?;
+    ensure_repo_ready(state.clone(), &name, local_path.clone(), repo.url.clone()).await?;
 
     let archive = spawn_blocking(move || {
         git::archive::create_archive(&local_path, &name, &ref_name, &format)
@@ -70,22 +71,4 @@ fn cleanup_archive_later(path: PathBuf) {
         tokio::time::sleep(Duration::from_secs(120)).await;
         let _ = tokio::fs::remove_file(path).await;
     });
-}
-
-async fn maybe_fetch_repo(
-    state: AppState,
-    local_path: PathBuf,
-    url: String,
-) -> Result<(), AppError> {
-    if !state.config.git.fetch_on_request {
-        return Ok(());
-    }
-    let config = state.config.clone();
-    spawn_blocking(move || git::clone::fetch_repo(&local_path, &url, &config))
-        .await
-        .map_err(join_error)?
-}
-
-fn join_error(err: tokio::task::JoinError) -> AppError {
-    AppError::IoError(format!("blocking task join error: {err}"))
 }

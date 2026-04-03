@@ -4,15 +4,27 @@
 
 :root {
   color-scheme: dark;
+  --gh-bg: #0d1117;
+  --gh-canvas: #0d1117;
+  --gh-canvas-subtle: #161b22;
+  --gh-canvas-inset: #010409;
+  --gh-border: #30363d;
+  --gh-border-muted: #21262d;
+  --gh-fg: #c9d1d9;
+  --gh-fg-muted: #8b949e;
+  --gh-accent: #2f81f7;
+  --gh-success: #238636;
+  --gh-danger: #da3633;
+  --gh-code: #161b22;
 }
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(108, 99, 255, 0.2), transparent 40%),
-    radial-gradient(circle at 100% 0%, rgba(255, 93, 143, 0.15), transparent 35%),
-    #0d0d0f;
-  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  background: var(--gh-bg);
+  color: var(--gh-fg);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
 }
 
 a {
@@ -21,48 +33,149 @@ a {
 }
 
 .card-surface {
-  @apply rounded-xl border border-white/10 bg-surface/90 backdrop-blur;
+  border: 1px solid var(--gh-border);
+  background: var(--gh-canvas-subtle);
+  border-radius: 6px;
 }
 
 .btn {
-  @apply inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-sm font-medium transition;
+  @apply inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition;
+  border: 1px solid var(--gh-border);
+  background: var(--gh-border-muted);
+  color: var(--gh-fg);
 }
 
 .btn-primary {
-  @apply border-primary/40 bg-primary/20 text-white hover:bg-primary/30;
+  border-color: color-mix(in srgb, var(--gh-success) 68%, black 32%);
+  background: var(--gh-success);
+  color: #ffffff;
 }
 
 .btn-danger {
-  @apply border-danger/40 bg-danger/20 text-white hover:bg-danger/30;
+  border-color: color-mix(in srgb, var(--gh-danger) 68%, black 32%);
+  background: color-mix(in srgb, var(--gh-danger) 26%, transparent 74%);
+  color: #ffdcd7;
 }
 
 .input {
-  @apply w-full rounded-lg border border-white/15 bg-black/25 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-primary/70 focus:outline-none focus:ring-2 focus:ring-primary/40;
+  @apply w-full rounded-md px-3 py-1.5 text-sm focus:outline-none;
+  border: 1px solid var(--gh-border);
+  background: var(--gh-canvas);
+  color: var(--gh-fg);
+}
+
+.input::placeholder {
+  color: var(--gh-fg-muted);
+}
+
+.input:focus {
+  border-color: var(--gh-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 22%, transparent 78%);
+}
+
+.link-accent {
+  color: var(--gh-accent);
+}
+
+.link-muted {
+  color: var(--gh-fg-muted);
+}
+
+.repo-shell {
+  max-width: 1280px;
+  margin-inline: auto;
 }
 
 .github-markdown {
-  @apply text-sm leading-7 text-white/90;
+  color: var(--gh-fg);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.github-markdown > :first-child {
+  margin-top: 0;
+}
+
+.github-markdown > :last-child {
+  margin-bottom: 0;
 }
 
 .github-markdown h1,
 .github-markdown h2,
 .github-markdown h3 {
-  @apply mt-6 border-b border-white/10 pb-2 text-white;
+  margin-top: 1.4rem;
+  margin-bottom: 0.8rem;
+  border-bottom: 1px solid var(--gh-border);
+  padding-bottom: 0.35rem;
+  color: #f0f6fc;
 }
 
 .github-markdown a {
-  @apply text-primary underline decoration-primary/60 underline-offset-2;
+  color: var(--gh-accent);
+  text-decoration: none;
+}
+
+.github-markdown a:hover {
+  text-decoration: underline;
 }
 
 .github-markdown pre {
-  @apply overflow-x-auto rounded-lg border border-white/10 bg-code p-4 text-xs;
+  overflow-x: auto;
+  border: 1px solid var(--gh-border-muted);
+  border-radius: 6px;
+  background: var(--gh-code);
+  padding: 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
 
 .github-markdown code {
-  @apply rounded bg-white/10 px-1 py-0.5;
+  background: color-mix(in srgb, var(--gh-border-muted) 92%, black 8%);
+  border-radius: 4px;
+  padding: 0.08rem 0.3rem;
+  font-size: 0.8rem;
 }
 
 .github-markdown ul,
 .github-markdown ol {
-  @apply ml-6 list-disc;
+  margin-left: 1.2rem;
+}
+
+.github-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.github-markdown table th,
+.github-markdown table td {
+  border: 1px solid var(--gh-border);
+  padding: 0.4rem 0.6rem;
+}
+
+.gh-muted {
+  color: var(--gh-fg-muted);
+}
+
+.gh-divider {
+  border-color: var(--gh-border);
+}
+
+@keyframes gh-shimmer {
+  0% {
+    background-position: -220% 0;
+  }
+  100% {
+    background-position: 220% 0;
+  }
+}
+
+.gh-shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--gh-canvas-subtle) 88%, black 12%) 20%,
+    color-mix(in srgb, var(--gh-border-muted) 70%, white 30%) 50%,
+    color-mix(in srgb, var(--gh-canvas-subtle) 88%, black 12%) 80%
+  );
+  background-size: 220% 100%;
+  animation: gh-shimmer 1.35s linear infinite;
 }

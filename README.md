@@ -18,6 +18,7 @@ The goal is simple: browse any git repository (public or private, when credentia
 - View commit history and commit diffs
 - Download raw files, `.tar.gz`, and `.zip`
 - Background periodic fetch (optional)
+- Request-time fetch guard cache (short TTL) to avoid repeated git network calls
 - Flat-file registry (`data/repos.json`) with file locking
 
 ## Stack
@@ -86,6 +87,7 @@ static_dir = "./static"
 [git]
 clone_timeout_secs = 120
 fetch_on_request = true
+fetch_cooldown_secs = 20
 ssh_private_key_path = "~/.ssh/id_rsa"
 
 [fetch]

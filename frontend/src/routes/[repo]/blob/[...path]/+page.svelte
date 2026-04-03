@@ -7,6 +7,7 @@
   import { formatDateTime } from '$lib/time';
   import type { BlobResponse, CommitInfo, RefsResponse } from '$lib/types';
   import { onMount } from 'svelte';
+  import ShimmerRows from '$lib/components/ShimmerRows.svelte';
 
   interface PageData {
     repo: string;
@@ -24,6 +25,7 @@
   let latestCommit = $state<CommitInfo | null>(null);
   let selectedRef = $state('');
   let loading = $state(true);
+  let loadError = $state('');
 
   const rawUrl = $derived(api.rawUrl(data.repo, selectedRef || 'main', data.path));
 
@@ -37,15 +39,26 @@
   });
 
   async function bootstrap() {
-    refs = await api.getRefs(data.repo);
-    if (selectedRef.length === 0) {
-      selectedRef = data.refName || refs.default_branch || 'main';
+    loading = true;
+    loadError = '';
+    try {
+      refs = await api.getRefs(data.repo);
+      if (selectedRef.length === 0) {
+        selectedRef = data.refName || refs.default_branch || 'main';
+      }
+      await loadBlob();
+    } catch (err) {
+      loadError = extractErrorMessage(err, 'Failed to load file metadata.');
+      blob = null;
+      latestCommit = null;
+    } finally {
+      loading = false;
     }
-    await loadBlob();
   }
 
   async function loadBlob() {
     loading = true;
+    loadError = '';
     try {
       const [nextBlob, commits] = await Promise.all([
         api.getBlob(data.repo, selectedRef, data.path),
@@ -56,6 +69,10 @@
       ]);
       blob = nextBlob;
       latestCommit = commits[0] ?? null;
+    } catch (err) {
+      blob = null;
+      latestCommit = null;
+      loadError = extractErrorMessage(err, 'File not found for the selected ref.');
     } finally {
       loading = false;
     }
@@ -68,6 +85,13 @@
       noScroll: true
     });
   }
+
+  function extractErrorMessage(value: unknown, fallback: string): string {
+    if (value instanceof Error && value.message.length > 0) {
+      return value.message;
+    }
+    return fallback;
+  }
 </script>
 
 <section class="space-y-4">
@@ -77,20 +101,24 @@
   </div>
 
   {#if latestCommit}
-    <div class="card-surface flex flex-wrap items-center gap-3 p-3 text-xs text-white/70">
+    <div class="card-surface flex flex-wrap items-center gap-3 px-3 py-2 text-xs gh-muted">
       <span>Last commit:</span>
-      <code class="rounded bg-black/30 px-1.5 py-0.5 text-primary">{latestCommit.short_hash}</code>
+      <code class="rounded-sm border gh-divider bg-[#0d1117] px-1.5 py-0.5 font-mono text-[#2f81f7]">
+        {latestCommit.short_hash}
+      </code>
       <span>{latestCommit.message_short}</span>
       <span>by {latestCommit.author_name}</span>
       <time>{formatDateTime(latestCommit.authored_at)}</time>
     </div>
   {/if}
 
-  {#if loading}
-    <p class="text-sm text-white/60">Loading file...</p>
+  {#if loading && blob === null && loadError.length === 0}
+    <ShimmerRows rows={10} lineHeightClass="h-5" />
+  {:else if loadError.length > 0}
+    <div class="card-surface p-6 text-sm text-[#ffdcd7]">{loadError}</div>
   {:else if blob}
-    <BlobViewer {blob} filePath={data.path} {rawUrl} />
+    <BlobViewer {blob} filePath={data.path} {rawUrl} repo={data.repo} refName={selectedRef || 'main'} />
   {:else}
-    <div class="card-surface p-6 text-sm text-white/60">File not found.</div>
+    <div class="card-surface p-6 text-sm gh-muted">File not found.</div>
   {/if}
 </section>

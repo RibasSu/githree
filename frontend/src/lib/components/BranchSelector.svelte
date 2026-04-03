@@ -15,8 +15,8 @@
   }
 </script>
 
-<label class="flex min-w-56 flex-col gap-2 text-xs uppercase tracking-wide text-white/60">
-  Branch / Tag
+<label class="flex min-w-52 flex-col gap-1 text-xs gh-muted">
+  Ref
   <select
     class="input text-sm normal-case"
     aria-label="Select git reference"

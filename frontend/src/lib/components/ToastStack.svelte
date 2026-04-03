@@ -16,12 +16,12 @@
 <div aria-live="polite" class="fixed right-4 top-4 z-50 flex w-[22rem] flex-col gap-2">
   {#each toastList as toast (toast.id)}
     <div
-      class={`rounded-lg border px-3 py-2 text-sm shadow-glow ${
+      class={`rounded-md border px-3 py-2 text-sm ${
         toast.type === 'error'
-          ? 'border-red-400/30 bg-red-500/15 text-red-100'
+          ? 'border-[#da3633] bg-[#2d0b0b] text-[#ffdcd7]'
           : toast.type === 'success'
-            ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-100'
-            : 'border-primary/40 bg-primary/20 text-white'
+            ? 'border-[#238636] bg-[#0f2a14] text-[#aff5b4]'
+            : 'border-[#2f81f7] bg-[#0b2239] text-[#c9d1d9]'
       }`}
       in:fly={{ x: 30, duration: 180 }}
       out:fly={{ x: 30, duration: 150 }}

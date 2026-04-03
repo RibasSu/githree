@@ -3,6 +3,7 @@
   import { formatDateTime } from '$lib/time';
   import type { CommitDetail } from '$lib/types';
   import { onMount } from 'svelte';
+  import ShimmerRows from '$lib/components/ShimmerRows.svelte';
 
   interface PageData {
     repo: string;
@@ -31,65 +32,68 @@
   }
 
   function lineClass(lineType: string): string {
-    if (lineType === 'add') return 'bg-emerald-500/15 text-emerald-100';
-    if (lineType === 'delete') return 'bg-red-500/15 text-red-100';
-    return 'text-white/80';
+    if (lineType === 'add') return 'bg-[#033a16] text-[#aff5b4]';
+    if (lineType === 'delete') return 'bg-[#490202] text-[#ffdcd7]';
+    return 'text-[#c9d1d9]';
   }
 </script>
 
 {#if loading}
-  <p class="text-sm text-white/60">Loading commit...</p>
+  <div class="space-y-3">
+    <ShimmerRows rows={5} />
+    <ShimmerRows rows={7} />
+  </div>
 {:else if detail === null}
-  <div class="card-surface p-6 text-sm text-white/60">Commit not found.</div>
+  <div class="card-surface p-6 text-sm gh-muted">Commit not found.</div>
 {:else}
   <section class="space-y-4">
     <a class="btn" href={`/${data.repo}/commits`}>Back to history</a>
 
     <article class="card-surface p-5">
-      <h1 class="text-lg font-semibold">{detail.commit.message_short}</h1>
-      <p class="mt-2 text-sm text-white/70">{detail.commit.message}</p>
+      <h1 class="text-lg font-semibold text-[#f0f6fc]">{detail.commit.message_short}</h1>
+      <p class="mt-2 text-sm gh-muted">{detail.commit.message}</p>
 
       <dl class="mt-4 grid gap-2 text-xs md:grid-cols-2">
         <div>
-          <dt class="text-white/50">Hash</dt>
-          <dd class="font-mono text-primary">{detail.commit.hash}</dd>
+          <dt class="gh-muted">Hash</dt>
+          <dd class="font-mono text-[#2f81f7]">{detail.commit.hash}</dd>
         </div>
         <div>
-          <dt class="text-white/50">Author</dt>
+          <dt class="gh-muted">Author</dt>
           <dd>{detail.commit.author_name} ({detail.commit.author_email})</dd>
         </div>
         <div>
-          <dt class="text-white/50">Date</dt>
+          <dt class="gh-muted">Date</dt>
           <dd>{formatDateTime(detail.commit.authored_at)}</dd>
         </div>
         <div>
-          <dt class="text-white/50">Parents</dt>
+          <dt class="gh-muted">Parents</dt>
           <dd class="font-mono">{detail.parents.join(', ')}</dd>
         </div>
       </dl>
     </article>
 
     <div class="card-surface p-4 text-xs">
-      <span class="font-semibold text-white">Diff Stats: </span>
-      <span class="text-white/70">{detail.stats.files_changed} files changed</span>
-      <span class="mx-2 text-emerald-300">+{detail.stats.insertions}</span>
-      <span class="text-red-300">-{detail.stats.deletions}</span>
+      <span class="font-semibold text-[#f0f6fc]">Diff Stats: </span>
+      <span class="gh-muted">{detail.stats.files_changed} files changed</span>
+      <span class="mx-2 text-[#3fb950]">+{detail.stats.insertions}</span>
+      <span class="text-[#f85149]">-{detail.stats.deletions}</span>
     </div>
 
     <section class="space-y-3">
       {#each detail.diffs as file}
         <article class="card-surface overflow-hidden">
-          <header class="border-b border-white/10 bg-black/20 px-4 py-2 text-xs text-white/70">
-            <span class="uppercase text-white/50">{file.status}</span>
+          <header class="border-b gh-divider bg-[#0d1117] px-4 py-2 text-xs gh-muted">
+            <span class="uppercase">{file.status}</span>
             <span class="mx-2">·</span>
-            <span class="font-mono">{file.old_path ?? file.new_path}</span>
+            <span class="font-mono text-[#c9d1d9]">{file.old_path ?? file.new_path}</span>
           </header>
           {#if file.is_binary}
-            <p class="px-4 py-3 text-sm text-white/60">Binary file changed.</p>
+            <p class="px-4 py-3 text-sm gh-muted">Binary file changed.</p>
           {:else}
             {#each file.hunks as hunk}
-              <div class="border-t border-white/10">
-                <div class="bg-black/30 px-4 py-1 font-mono text-xs text-primary">{hunk.header}</div>
+              <div class="border-t gh-divider">
+                <div class="bg-[#161b22] px-4 py-1 font-mono text-xs text-[#2f81f7]">{hunk.header}</div>
                 <pre class="overflow-x-auto p-3 font-mono text-xs leading-6">{#each hunk.lines as line}<div class={lineClass(line.line_type)}>{line.content}</div>{/each}</pre>
               </div>
             {/each}

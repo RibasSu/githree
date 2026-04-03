@@ -5,6 +5,7 @@ use tracing::instrument;
 
 use crate::error::AppError;
 use crate::git::{self, RefsResponse};
+use crate::handlers::sync::{ensure_repo_ready, join_error};
 use crate::state::AppState;
 
 #[instrument(skip(state), fields(repo_name = %name))]
@@ -15,21 +16,10 @@ pub async fn get_refs(
     let repo = state.registry.get(&name).await?;
     let local_path = git::repo_disk_path(&state.config.repos_dir(), &name);
 
-    if state.config.git.fetch_on_request {
-        let config = state.config.clone();
-        let url = repo.url.clone();
-        let fetch_path = local_path.clone();
-        spawn_blocking(move || git::clone::fetch_repo(&fetch_path, &url, &config))
-            .await
-            .map_err(join_error)??;
-    }
+    ensure_repo_ready(state.clone(), &name, local_path.clone(), repo.url.clone()).await?;
 
     let refs = spawn_blocking(move || git::refs::list_refs(&local_path))
         .await
         .map_err(join_error)??;
     Ok(Json(refs))
-}
-
-fn join_error(err: tokio::task::JoinError) -> AppError {
-    AppError::IoError(format!("blocking task join error: {err}"))
 }

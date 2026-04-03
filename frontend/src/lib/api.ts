@@ -26,6 +26,8 @@ const apiBase = envApiBase || 'http://localhost:3001';
 
 export const apiLoading = writable(false);
 export const toasts = writable<ToastMessage[]>([]);
+const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
 
 function toast(message: string, type: ToastType = 'info') {
   const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -41,33 +43,85 @@ async function request<T>(
     method?: HttpMethod;
     body?: unknown;
     notifyOnError?: boolean;
+    cacheTtlMs?: number;
+    forceRefresh?: boolean;
   } = {}
 ): Promise<T> {
   const method = options.method ?? 'GET';
-  apiLoading.set(true);
-  try {
-    const response = await fetch(`${apiBase}/api${path}`, {
-      method,
-      headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
-      body: options.body ? JSON.stringify(options.body) : undefined
-    });
+  const cacheTtlMs = options.cacheTtlMs ?? 0;
+  const shouldCache = method === 'GET' && cacheTtlMs > 0;
+  const cacheKey = shouldCache ? `${method}:${path}` : '';
 
-    if (response.ok === false) {
-      const payload = (await response.json().catch(() => null)) as { error?: string; code?: string } | null;
-      const message = payload?.error || `Request failed with status ${response.status}`;
-      if (options.notifyOnError ?? true) {
-        toast(message, 'error');
+  if (shouldCache && !options.forceRefresh) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as T;
+    }
+    if (cached) {
+      responseCache.delete(cacheKey);
+    }
+
+    const inFlight = inFlightGetRequests.get(cacheKey);
+    if (inFlight) {
+      return (await inFlight) as T;
+    }
+  }
+
+  const execute = async (): Promise<T> => {
+    apiLoading.set(true);
+    try {
+      const response = await fetch(`${apiBase}/api${path}`, {
+        method,
+        headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+
+      if (response.ok === false) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string; code?: string }
+          | null;
+        const message = payload?.error || `Request failed with status ${response.status}`;
+        if (options.notifyOnError ?? true) {
+          toast(message, 'error');
+        }
+        throw new Error(message);
       }
-      throw new Error(message);
-    }
 
-    if (response.status === 204) {
-      return undefined as T;
-    }
+      if (response.status === 204) {
+        if (method !== 'GET') {
+          responseCache.clear();
+        }
+        return undefined as T;
+      }
 
-    return (await response.json()) as T;
+      const payload = (await response.json()) as T;
+      if (method !== 'GET') {
+        responseCache.clear();
+      }
+      return payload;
+    } finally {
+      apiLoading.set(false);
+    }
+  };
+
+  const requestPromise = execute();
+  if (shouldCache) {
+    inFlightGetRequests.set(cacheKey, requestPromise as Promise<unknown>);
+  }
+
+  try {
+    const payload = await requestPromise;
+    if (shouldCache) {
+      responseCache.set(cacheKey, {
+        expiresAt: Date.now() + cacheTtlMs,
+        value: payload
+      });
+    }
+    return payload;
   } finally {
-    apiLoading.set(false);
+    if (shouldCache) {
+      inFlightGetRequests.delete(cacheKey);
+    }
   }
 }
 
@@ -75,7 +129,7 @@ export const api = {
   notify: toast,
 
   listRepos() {
-    return request<RepoInfo[]>('/repos');
+    return request<RepoInfo[]>('/repos', { cacheTtlMs: 15_000 });
   },
 
   addRepo(url: string, name?: string) {
@@ -98,22 +152,28 @@ export const api = {
   },
 
   getRefs(name: string) {
-    return request<RefsResponse>(`/repos/${encodeURIComponent(name)}/refs`);
+    return request<RefsResponse>(`/repos/${encodeURIComponent(name)}/refs`, { cacheTtlMs: 30_000 });
   },
 
   getTree(name: string, refName: string, path = '') {
     const query = new URLSearchParams({ ref: refName, path });
-    return request<TreeEntry[]>(`/repos/${encodeURIComponent(name)}/tree?${query.toString()}`);
+    return request<TreeEntry[]>(`/repos/${encodeURIComponent(name)}/tree?${query.toString()}`, {
+      cacheTtlMs: 60_000
+    });
   },
 
   getBlob(name: string, refName: string, path: string) {
     const query = new URLSearchParams({ ref: refName, path });
-    return request<BlobResponse>(`/repos/${encodeURIComponent(name)}/blob?${query.toString()}`);
+    return request<BlobResponse>(`/repos/${encodeURIComponent(name)}/blob?${query.toString()}`, {
+      cacheTtlMs: 60_000
+    });
   },
 
   getReadme(name: string, refName: string) {
     const query = new URLSearchParams({ ref: refName });
-    return request<ReadmeResponse>(`/repos/${encodeURIComponent(name)}/readme?${query.toString()}`);
+    return request<ReadmeResponse>(`/repos/${encodeURIComponent(name)}/readme?${query.toString()}`, {
+      cacheTtlMs: 120_000
+    });
   },
 
   getCommits(name: string, refName: string, options?: { path?: string; skip?: number; limit?: number }) {
@@ -123,11 +183,15 @@ export const api = {
       skip: String(options?.skip ?? 0),
       limit: String(options?.limit ?? 30)
     });
-    return request<CommitInfo[]>(`/repos/${encodeURIComponent(name)}/commits?${query.toString()}`);
+    return request<CommitInfo[]>(`/repos/${encodeURIComponent(name)}/commits?${query.toString()}`, {
+      cacheTtlMs: 30_000
+    });
   },
 
   getCommit(name: string, hash: string) {
-    return request<CommitDetail>(`/repos/${encodeURIComponent(name)}/commit/${encodeURIComponent(hash)}`);
+    return request<CommitDetail>(`/repos/${encodeURIComponent(name)}/commit/${encodeURIComponent(hash)}`, {
+      cacheTtlMs: 120_000
+    });
   },
 
   archiveUrl(name: string, refName: string, format: 'tar.gz' | 'zip') {

@@ -150,6 +150,7 @@ mod tests {
             git: GitConfig {
                 clone_timeout_secs: 10,
                 fetch_on_request: false,
+                fetch_cooldown_secs: 20,
                 ssh_private_key_path: "~/.ssh/id_rsa".to_string(),
             },
             fetch: FetchConfig {

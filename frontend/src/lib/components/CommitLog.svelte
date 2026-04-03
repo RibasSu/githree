@@ -53,34 +53,34 @@
     type="text"
   />
 
-  <div class="card-surface divide-y divide-white/10 overflow-hidden">
+  <div class="card-surface divide-y divide-[#30363d] overflow-hidden">
     {#each filtered as commit}
       <a
-        class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 hover:bg-white/5"
+        class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 hover:bg-[#161b22]"
         href={`/${repo}/commit/${commit.hash}`}
       >
         <img
           alt={commit.author_name}
-          class="h-8 w-8 rounded-full border border-white/10"
+          class="h-8 w-8 rounded-full border gh-divider"
           loading="lazy"
           src={avatarUrl(commit.author_email)}
         />
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
-            <code class="rounded bg-black/40 px-1.5 py-0.5 font-mono text-xs text-primary">
+            <code class="rounded-sm border gh-divider bg-[#0d1117] px-1.5 py-0.5 font-mono text-xs text-[#2f81f7]">
               {commit.short_hash}
             </code>
-            <span class="truncate text-sm text-white">{commit.message_short}</span>
+            <span class="truncate text-sm text-[#c9d1d9]">{commit.message_short}</span>
           </div>
-          <p class="truncate text-xs text-white/60">
+          <p class="truncate text-xs gh-muted">
             {commit.author_name} · {commit.author_email}
           </p>
         </div>
-        <time class="text-xs text-white/60">{formatRelativeTime(commit.authored_at)}</time>
+        <time class="text-xs gh-muted">{formatRelativeTime(commit.authored_at)}</time>
       </a>
     {/each}
     {#if filtered.length === 0}
-      <p class="px-4 py-6 text-sm text-white/60">No commits match your filter.</p>
+      <p class="px-4 py-6 text-sm gh-muted">No commits match your filter.</p>
     {/if}
   </div>
 </section>

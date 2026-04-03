@@ -19,13 +19,13 @@
   }
 </script>
 
-<article class="card-surface p-4">
-  <div class="flex items-start justify-between gap-3">
-    <div class="min-w-0">
-      <h3 class="truncate text-base font-semibold text-white">
-        <a class="hover:text-primary" href={`/${repo.name}`}>{repo.name}</a>
-      </h3>
-      <p class="mt-1 flex items-center gap-2 truncate text-xs text-white/60">
+<article class="grid gap-3 border-t gh-divider px-4 py-3 md:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto] md:items-center">
+  <div class="min-w-0">
+    <h3 class="truncate text-[15px] font-semibold text-[#f0f6fc]">
+      <a class="hover:underline" href={`/${repo.name}`}>{repo.name}</a>
+    </h3>
+    <p class="mt-1 flex items-center gap-2 truncate text-xs gh-muted">
+      <span class="inline-flex items-center gap-1">
         {#if source === 'github'}
           <Github size={14} />
         {:else if source === 'gitlab'}
@@ -34,34 +34,28 @@
           <GitBranch size={14} />
         {/if}
         <span>{sourceLabel()}</span>
-      </p>
-      <a
-        class="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80"
-        href={repo.url}
-        rel="noreferrer"
-        target="_blank"
-      >
-        <span class="max-w-[14rem] truncate">{repo.url}</span>
-        <ExternalLink size={12} />
-      </a>
-    </div>
-    <span class="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs text-white/70">
-      {repo.default_branch}
-    </span>
+      </span>
+      <span class="mx-1">·</span>
+      <span>default: {repo.default_branch}</span>
+    </p>
   </div>
 
-  <div class="mt-4 flex items-center justify-between text-xs text-white/60">
-    <span>
+  <div class="min-w-0">
+    <a class="inline-flex max-w-full items-center gap-1 truncate text-xs link-accent hover:underline" href={repo.url} rel="noreferrer" target="_blank">
+      <span class="truncate">{repo.url}</span>
+      <ExternalLink size={12} />
+    </a>
+    <p class="mt-1 text-xs gh-muted">
       {#if repo.last_fetched}
         updated {formatRelativeTime(repo.last_fetched)}
       {:else}
         never fetched
       {/if}
-    </span>
-    <span>{repo.size_kb} KB</span>
+      · {repo.size_kb} KB
+    </p>
   </div>
 
-  <div class="mt-4 flex flex-wrap gap-2">
+  <div class="flex flex-wrap items-center gap-2 md:justify-end">
     <a class="btn btn-primary" href={`/${repo.name}`}>
       Browse
     </a>

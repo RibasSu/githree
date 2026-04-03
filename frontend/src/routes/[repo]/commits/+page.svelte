@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import BranchSelector from '$lib/components/BranchSelector.svelte';
   import CommitLog from '$lib/components/CommitLog.svelte';
+  import ShimmerRows from '$lib/components/ShimmerRows.svelte';
   import { api } from '$lib/api';
   import type { CommitInfo, RefsResponse } from '$lib/types';
   import { onMount } from 'svelte';
@@ -67,17 +68,17 @@
 
 <section class="space-y-4">
   <div class="flex flex-wrap items-center justify-between gap-3">
-    <h1 class="text-xl font-semibold">Commit History</h1>
+    <h1 class="text-xl font-semibold text-[#f0f6fc]">Commit History</h1>
     <BranchSelector onSelect={changeRef} refs={refs} selected={selectedRef || 'main'} />
   </div>
 
   <div class="flex flex-wrap items-center gap-2">
     <a class="btn" href={`/${data.repo}?ref=${encodeURIComponent(selectedRef)}`}>Back to repository</a>
-    <span class="text-xs text-white/60">Showing {skip + 1} - {skip + commits.length}</span>
+    <span class="text-xs gh-muted">Showing {skip + 1} - {skip + commits.length}</span>
   </div>
 
-  {#if loading}
-    <p class="text-sm text-white/60">Loading commits...</p>
+  {#if loading && commits.length === 0}
+    <ShimmerRows rows={10} />
   {:else}
     <CommitLog commits={commits} repo={data.repo} />
     <div class="flex items-center gap-2">

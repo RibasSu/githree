@@ -3,6 +3,7 @@
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import BranchSelector from '$lib/components/BranchSelector.svelte';
   import FileTree from '$lib/components/FileTree.svelte';
+  import ShimmerRows from '$lib/components/ShimmerRows.svelte';
   import { api } from '$lib/api';
   import type { RefsResponse, TreeEntry } from '$lib/types';
   import { onMount } from 'svelte';
@@ -81,8 +82,8 @@
     </a>
   </div>
 
-  {#if loading}
-    <p class="text-sm text-white/60">Loading directory...</p>
+  {#if loading && entries.length === 0}
+    <ShimmerRows rows={8} />
   {:else}
     <FileTree {entries} refName={selectedRef || 'main'} repo={data.repo} />
   {/if}
