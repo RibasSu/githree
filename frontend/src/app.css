@@ -744,7 +744,7 @@ a {
     color-mix(in srgb, var(--gt-canvas-subtle) 88%, black 12%) 80%
   );
   background-size: 220% 100%;
-  animation: gt-shimmer 1.2s linear infinite !important;
+  animation: gt-shimmer 2.4s linear infinite !important;
   animation-play-state: running !important;
   will-change: background-position;
   transform: translateZ(0);

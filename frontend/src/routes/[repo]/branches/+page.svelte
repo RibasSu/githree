@@ -108,7 +108,7 @@
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <a class="btn" href={`/${data.repo}?ref=${encodeURIComponent(selectedRef || 'main')}`}>Back to repository</a>
-      <BranchSelector onSelect={changeRef} refs={refs} repoName={data.repo} selected={selectedRef || 'main'} />
+      <BranchSelector compact onSelect={changeRef} refs={refs} repoName={data.repo} selected={selectedRef || 'main'} />
     </div>
   </div>
 
