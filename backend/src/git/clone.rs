@@ -149,3 +149,166 @@ fn extract_host(url: &str) -> Option<String> {
     let host = at_split.split(':').next()?;
     Some(host.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::Path;
+    use std::process::Command;
+
+    use tempfile::tempdir;
+
+    use super::*;
+    use crate::config::{FetchConfig, GitConfig, ReposConfig, ServerConfig, StorageConfig};
+
+    fn test_config_with_credentials() -> AppConfig {
+        AppConfig {
+            server: ServerConfig {
+                host: "127.0.0.1".to_string(),
+                port: 0,
+            },
+            storage: StorageConfig {
+                repos_dir: "./data/repos".to_string(),
+                registry_file: "./data/repos.json".to_string(),
+                static_dir: "./static".to_string(),
+            },
+            git: GitConfig {
+                clone_timeout_secs: 5,
+                fetch_on_request: false,
+                ssh_private_key_path: "~/.ssh/id_rsa".to_string(),
+            },
+            fetch: FetchConfig {
+                enabled: false,
+                interval_minutes: 30,
+            },
+            repos: ReposConfig {
+                credentials: vec![RepoCredential {
+                    host: "gitlab.example.com".to_string(),
+                    username: "bot".to_string(),
+                    password: "token".to_string(),
+                }],
+            },
+        }
+    }
+
+    fn run_git(args: &[&str], cwd: Option<&Path>) {
+        let mut cmd = Command::new("git");
+        cmd.args(args);
+        if let Some(path) = cwd {
+            cmd.current_dir(path);
+        }
+        let output = cmd.output().expect("run git command");
+        assert!(
+            output.status.success(),
+            "git command failed: git {}\nstdout:\n{}\nstderr:\n{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn extract_host_handles_https_and_ssh_urls() {
+        assert_eq!(
+            extract_host("https://github.com/org/repo.git").as_deref(),
+            Some("github.com")
+        );
+        assert_eq!(
+            extract_host("git@gitlab.example.com:team/repo.git").as_deref(),
+            Some("gitlab.example.com")
+        );
+        assert!(extract_host("not-a-valid-url").is_none());
+    }
+
+    #[test]
+    fn credential_matching_uses_case_insensitive_host() {
+        let config = test_config_with_credentials();
+        let found = find_credential_for_url("https://GitLab.Example.com/team/repo.git", &config)
+            .expect("credential should match by host");
+        assert_eq!(found.username, "bot");
+
+        let requested = credential_for_callback(
+            "https://gitlab.example.com/team/repo.git",
+            &Some(found.clone()),
+        )
+        .expect("callback credential should match");
+        assert_eq!(requested.password, "token");
+
+        let mismatch =
+            credential_for_callback("https://github.com/org/repo.git", &Some(found.clone()));
+        assert!(mismatch.is_none());
+    }
+
+    #[test]
+    fn repo_size_kb_scans_nested_directories() {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("nested")).expect("create nested dir");
+        fs::write(temp.path().join("a.bin"), vec![0_u8; 600]).expect("write top level file");
+        fs::write(temp.path().join("nested").join("b.bin"), vec![0_u8; 2048])
+            .expect("write nested file");
+
+        let size_kb = repo_size_kb(temp.path()).expect("repo size");
+        assert!(size_kb >= 2);
+    }
+
+    #[test]
+    fn clone_and_fetch_return_useful_errors_for_missing_repositories() {
+        let config = test_config_with_credentials();
+        let temp = tempdir().expect("tempdir");
+        let clone_path = temp.path().join("missing-clone.git");
+
+        let clone_error = match clone_repo(
+            "file:///definitely/does/not/exist/repo.git",
+            &clone_path,
+            &config,
+        ) {
+            Ok(_) => panic!("clone should fail"),
+            Err(err) => err,
+        };
+        match clone_error {
+            AppError::CloneError(_) => {}
+            other => panic!("expected CloneError, got {other:?}"),
+        }
+
+        let fetch_error = fetch_repo(&clone_path, "https://example.com/repo.git", &config)
+            .expect_err("fetch should fail");
+        match fetch_error {
+            AppError::GitError(_) => {}
+            other => panic!("expected GitError, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn default_branch_uses_head_when_origin_head_ref_is_missing() {
+        let temp = tempdir().expect("tempdir");
+        let work = temp.path().join("work");
+        let bare = temp.path().join("bare.git");
+
+        run_git(
+            &[
+                "init",
+                "--initial-branch=main",
+                work.to_str().expect("utf-8 path"),
+            ],
+            None,
+        );
+        run_git(&["config", "user.name", "Tester"], Some(&work));
+        run_git(&["config", "user.email", "tester@example.com"], Some(&work));
+        fs::write(work.join("README.md"), "# hello\n").expect("write readme");
+        run_git(&["add", "."], Some(&work));
+        run_git(&["commit", "-m", "init"], Some(&work));
+        run_git(
+            &[
+                "clone",
+                "--bare",
+                work.to_str().expect("utf-8 path"),
+                bare.to_str().expect("utf-8 path"),
+            ],
+            None,
+        );
+
+        let repo = open_bare_repo(&bare).expect("open bare repo");
+        let branch = default_branch(&repo).expect("default branch");
+        assert_eq!(branch, "main");
+    }
+}

@@ -1,0 +1,187 @@
+mod common;
+
+use std::fs;
+
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+use flate2::read::GzDecoder;
+use githree::error::AppError;
+use githree::git;
+use tar::Archive as TarArchive;
+use tempfile::tempdir;
+use zip::ZipArchive;
+
+#[test]
+fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
+    let fixture = common::RepoFixture::new();
+    let temp = tempdir().expect("tempdir");
+    let config = common::test_config(temp.path());
+    let local_path = temp.path().join("repos").join("sample");
+    fs::create_dir_all(local_path.parent().expect("parent path")).expect("create dirs");
+
+    git::clone::clone_repo(&fixture.remote_url(), &local_path, &config).expect("clone repo");
+    let repo = git::clone::open_bare_repo(&local_path).expect("open bare repo");
+    let default_branch = git::clone::default_branch(&repo).expect("resolve default branch");
+    assert_eq!(default_branch, "main");
+    let repo_size = git::clone::repo_size_kb(&local_path).expect("repo size");
+    assert!(repo_size < u64::MAX);
+
+    let refs = git::refs::list_refs(&local_path).expect("list refs");
+    assert!(refs.branches.iter().any(|branch| branch == "main"));
+    // list_refs returns local branches in the bare clone, which always includes main.
+    assert!(refs.tags.iter().any(|tag| tag == "v1.0.0"));
+
+    let root = git::browse::list_tree(&local_path, "main", "").expect("list root tree");
+    assert!(!root.is_empty());
+    assert!(root.iter().any(|entry| entry.entry_type == "tree"));
+    assert!(root.iter().any(|entry| entry.name == "README.md"));
+
+    let docs = git::browse::list_tree(&local_path, "main", "docs").expect("list docs tree");
+    assert!(docs.iter().any(|entry| entry.name == "renamed-guide.md"));
+
+    let missing_tree = git::browse::list_tree(&local_path, "main", "missing/path")
+        .expect_err("missing tree should error");
+    match missing_tree {
+        AppError::NotFound(_) => {}
+        other => panic!("expected NotFound, got {other:?}"),
+    }
+
+    let readme = git::browse::read_blob(&local_path, "main", "README.md").expect("read readme");
+    assert_eq!(readme.encoding, "utf8");
+    assert!(!readme.is_binary);
+    assert_eq!(readme.language, "markdown");
+    assert!(readme.content.contains("Sample Repo"));
+
+    let binary = git::browse::read_blob(&local_path, "main", "binary.bin").expect("read binary");
+    assert!(binary.is_binary);
+    assert_eq!(binary.encoding, "base64");
+    let decoded = STANDARD
+        .decode(binary.content)
+        .expect("decode base64 binary");
+    assert!(!decoded.is_empty());
+
+    let blob_on_tree = git::browse::read_blob(&local_path, "main", "docs")
+        .expect_err("directory should not be readable as blob");
+    match blob_on_tree {
+        AppError::InvalidRequest(_) => {}
+        other => panic!("expected InvalidRequest, got {other:?}"),
+    }
+
+    let raw = git::browse::read_raw(&local_path, "main", "README.md").expect("read raw");
+    assert_eq!(raw.file_name, "README.md");
+    assert!(!raw.content.is_empty());
+
+    let readme_doc = git::browse::read_readme(&local_path, "main").expect("read README");
+    assert_eq!(readme_doc.filename, "README.md");
+
+    let history =
+        git::browse::commit_history(&local_path, "main", None, 0, 3).expect("commit history");
+    assert_eq!(history.len(), 3);
+    assert!(history.iter().all(|commit| !commit.hash.is_empty()));
+
+    let filtered =
+        git::browse::commit_history(&local_path, "main", Some("docs/renamed-guide.md"), 0, 10)
+            .expect("filtered history");
+    assert!(!filtered.is_empty());
+
+    let detail =
+        git::browse::commit_detail(&local_path, "main~1").expect("commit detail by revparse expr");
+    assert_eq!(detail.commit.hash, history[1].hash);
+    assert!(!detail.diffs.is_empty());
+
+    let missing_ref = git::browse::commit_history(&local_path, "not-a-ref", None, 0, 1)
+        .expect_err("missing ref should error");
+    match missing_ref {
+        AppError::NotFound(_) => {}
+        other => panic!("expected NotFound, got {other:?}"),
+    }
+
+    let missing_commit = git::browse::commit_detail(&local_path, "deadbeef")
+        .expect_err("missing commit should error");
+    match missing_commit {
+        AppError::GitError(_) | AppError::NotFound(_) => {}
+        other => panic!("expected GitError or NotFound, got {other:?}"),
+    }
+
+    let new_hash = fixture.add_remote_commit(
+        "after-fetch.txt",
+        b"new content after local clone\n",
+        "feat: commit after clone",
+    );
+    git::clone::fetch_repo(&local_path, &fixture.remote_url(), &config).expect("fetch repo");
+
+    let remote_tree = git::browse::list_tree(&local_path, "refs/remotes/origin/main", "")
+        .expect("list remote-tracking main tree");
+    assert!(
+        remote_tree
+            .iter()
+            .any(|entry| entry.name == "after-fetch.txt")
+    );
+
+    let fetched_detail = git::browse::commit_detail(&local_path, &new_hash)
+        .expect("commit detail for fetched commit");
+    assert_eq!(fetched_detail.commit.hash, new_hash);
+}
+
+#[test]
+fn archive_generation_supports_tar_gz_and_zip() {
+    let fixture = common::RepoFixture::new();
+    let temp = tempdir().expect("tempdir");
+    let config = common::test_config(temp.path());
+    let local_path = temp.path().join("repos").join("archive-repo");
+    fs::create_dir_all(local_path.parent().expect("parent path")).expect("create dirs");
+    git::clone::clone_repo(&fixture.remote_url(), &local_path, &config).expect("clone repo");
+
+    let tar_response = git::archive::create_archive(&local_path, "archive-repo", "main", "tar.gz")
+        .expect("create tar.gz archive");
+    assert_eq!(tar_response.content_type, "application/gzip");
+    assert!(tar_response.file_name.ends_with(".tar.gz"));
+    assert!(tar_response.path.exists());
+
+    let tar_file = fs::File::open(&tar_response.path).expect("open tar.gz");
+    let decoder = GzDecoder::new(tar_file);
+    let mut archive = TarArchive::new(decoder);
+    let mut tar_entries = vec![];
+    for entry in archive.entries().expect("tar entries") {
+        let entry = entry.expect("valid tar entry");
+        let path = entry
+            .path()
+            .expect("tar entry path")
+            .to_string_lossy()
+            .to_string();
+        tar_entries.push(path);
+    }
+    assert!(tar_entries.iter().any(|path| path.ends_with("README.md")));
+
+    let zip_response = git::archive::create_archive(&local_path, "archive-repo", "main", "zip")
+        .expect("create zip archive");
+    assert_eq!(zip_response.content_type, "application/zip");
+    assert!(zip_response.file_name.ends_with(".zip"));
+    assert!(zip_response.path.exists());
+
+    let zip_file = fs::File::open(&zip_response.path).expect("open zip archive");
+    let mut zip = ZipArchive::new(zip_file).expect("read zip archive");
+    let mut found_readme = false;
+    for idx in 0..zip.len() {
+        let file = zip.by_index(idx).expect("zip file entry");
+        if file.name().ends_with("README.md") {
+            found_readme = true;
+            break;
+        }
+    }
+    assert!(found_readme);
+
+    let bad_format = git::archive::create_archive(&local_path, "archive-repo", "main", "7z")
+        .expect_err("unsupported archive format should fail");
+    match bad_format {
+        AppError::InvalidRequest(_) => {}
+        other => panic!("expected InvalidRequest, got {other:?}"),
+    }
+
+    let bad_ref = git::archive::create_archive(&local_path, "archive-repo", "missing", "zip")
+        .expect_err("missing ref should fail");
+    match bad_ref {
+        AppError::NotFound(_) => {}
+        other => panic!("expected NotFound, got {other:?}"),
+    }
+}
