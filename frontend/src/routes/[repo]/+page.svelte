@@ -331,6 +331,12 @@
     }
     return extractRemoteCoordinates(repo.url, repo.name);
   });
+  const remoteLinks = $derived.by(() => {
+    if (!repo) {
+      return { namespaceHref: '', repositoryHref: '' };
+    }
+    return buildRemoteLinks(repo.url, remoteCoordinates.namespace, remoteCoordinates.repositoryName);
+  });
   const activeCloneCommand = $derived.by(() => {
     if (!repo) return '';
     if (cloneTab === 'ssh') return sshCloneCommand(repo.url);
@@ -600,6 +606,47 @@
   function isScpLikeSshUrl(url: string): boolean {
     return /^[a-z0-9._-]+@[a-z0-9.-]+:[^:\s]+$/i.test(url);
   }
+
+  function buildRemoteLinks(
+    sourceUrl: string,
+    namespace: string,
+    repositoryName: string
+  ): { namespaceHref: string; repositoryHref: string } {
+    const trimmed = sourceUrl.trim();
+    if (trimmed.length === 0) {
+      return { namespaceHref: '', repositoryHref: '' };
+    }
+
+    const namespacePath = namespace.trim().replace(/^\/+|\/+$/g, '');
+    const repoPath = [namespacePath, repositoryName]
+      .filter((segment) => segment.length > 0)
+      .join('/')
+      .replace(/\.git$/i, '');
+
+    const sshMatch = /^([a-z0-9._-]+)@([^:]+):(.+)$/i.exec(trimmed);
+    if (sshMatch) {
+      const host = sshMatch[2];
+      const sshPath = sshMatch[3].replace(/^\/+|\/+$/g, '').replace(/\.git$/i, '');
+      const effectiveRepoPath = repoPath.length > 0 ? repoPath : sshPath;
+      return {
+        namespaceHref: namespacePath.length > 0 ? `https://${host}/${namespacePath}` : '',
+        repositoryHref: effectiveRepoPath.length > 0 ? `https://${host}/${effectiveRepoPath}` : ''
+      };
+    }
+
+    try {
+      const parsed = new URL(trimmed);
+      const cleanedPath = parsed.pathname.replace(/^\/+|\/+$/g, '').replace(/\.git$/i, '');
+      const effectiveRepoPath = repoPath.length > 0 ? repoPath : cleanedPath;
+      return {
+        namespaceHref: namespacePath.length > 0 ? `${parsed.origin}/${namespacePath}` : '',
+        repositoryHref:
+          effectiveRepoPath.length > 0 ? `${parsed.origin}/${effectiveRepoPath}` : parsed.href
+      };
+    } catch {
+      return { namespaceHref: '', repositoryHref: trimmed };
+    }
+  }
 </script>
 
 {#if loading}
@@ -624,14 +671,33 @@
           {/if}
 
           {#if remoteCoordinates.namespace.length > 0}
-            <span class="text-[#8b949e]">{remoteCoordinates.namespace}</span>
+            {#if remoteLinks.namespaceHref.length > 0}
+              <a
+                class="text-[#8b949e] hover:underline"
+                href={remoteLinks.namespaceHref}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                {remoteCoordinates.namespace}
+              </a>
+            {:else}
+              <span class="text-[#8b949e]">{remoteCoordinates.namespace}</span>
+            {/if}
             <span class="gt-muted">/</span>
           {/if}
-          <span>{remoteCoordinates.repositoryName}</span>
+          {#if remoteLinks.repositoryHref.length > 0}
+            <a
+              class="text-[#f0f6fc] hover:underline"
+              href={remoteLinks.repositoryHref}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {remoteCoordinates.repositoryName}
+            </a>
+          {:else}
+            <span>{remoteCoordinates.repositoryName}</span>
+          {/if}
         </h1>
-        <a class="mt-1 inline-flex items-center text-sm link-accent hover:underline" href={repo.url} target="_blank">
-          {repo.url}
-        </a>
       </div>
       <div class="flex flex-wrap gap-2">
         <a class="btn btn-primary" href={`/${data.repo}/commits?ref=${encodeURIComponent(selectedRef)}`}>
