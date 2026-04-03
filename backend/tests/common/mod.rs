@@ -85,7 +85,7 @@ impl RepoFixture {
             Some(&work_dir),
         );
 
-        run_git(&["tag", "v1.0.0", "HEAD~1"], Some(&work_dir));
+        run_git(&["tag", "--no-sign", "v1.0.0", "HEAD~1"], Some(&work_dir));
 
         run_git(&["checkout", "-b", "feature-x"], Some(&work_dir));
         fs::write(work_dir.join("feature.txt"), "feature branch\n").expect("write feature file");
