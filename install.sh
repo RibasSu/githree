@@ -11,6 +11,7 @@ HAS_TTY=0
 USE_COLOR=0
 STEP_INDEX=0
 DOCKER_NEEDS_SUDO=0
+COMPOSE_LOG_TAIL_LINES=60
 
 if [[ -t 1 && -w /dev/tty ]]; then
   HAS_TTY=1
@@ -140,6 +141,14 @@ run_privileged() {
   else
     run "$@"
   fi
+}
+
+prime_sudo_credentials() {
+  if [[ -z "$SUDO_BIN" ]]; then
+    return 0
+  fi
+  info "Validating sudo credentials..."
+  "$SUDO_BIN" -v
 }
 
 prompt() {
@@ -343,6 +352,56 @@ configure_compose_privilege_mode() {
 
   COMPOSE_CMD=("$SUDO_BIN" "${COMPOSE_CMD[@]}")
   info "Docker commands for this installer run will use sudo."
+}
+
+run_compose_stack() {
+  local compose_file="$1"
+  local marker="----- docker-compose output $(date +'%Y-%m-%d %H:%M:%S') -----"
+  local compose_args=(-f "$compose_file" up -d --build)
+  local spinner='|/-\'
+  local spin_idx=0
+
+  if [[ $DOCKER_NEEDS_SUDO -eq 1 ]]; then
+    prime_sudo_credentials
+  fi
+
+  info "Running: ${COMPOSE_CMD[*]} ${compose_args[*]}"
+  info "Compose output is being written to: $LOG_FILE"
+
+  {
+    echo "$marker"
+    echo "Command: ${COMPOSE_CMD[*]} ${compose_args[*]}"
+  } >>"$LOG_FILE"
+
+  if [[ $HAS_TTY -eq 1 ]]; then
+    "${COMPOSE_CMD[@]}" "${compose_args[@]}" >>"$LOG_FILE" 2>&1 &
+    local compose_pid=$!
+
+    while kill -0 "$compose_pid" 2>/dev/null; do
+      printf '\r%b[BUILD]%b Building containers... %s   ' \
+        "$C_MUTED" "$C_RESET" "${spinner:spin_idx:1}" > /dev/tty
+      spin_idx=$(((spin_idx + 1) % 4))
+      sleep 0.2
+    done
+
+    if wait "$compose_pid"; then
+      printf '\r' > /dev/tty
+      return 0
+    fi
+
+    printf '\r' > /dev/tty
+    warn "Docker Compose failed. Showing last ${COMPOSE_LOG_TAIL_LINES} log lines:"
+    tail -n "$COMPOSE_LOG_TAIL_LINES" "$LOG_FILE" >&2
+    return 1
+  fi
+
+  if "${COMPOSE_CMD[@]}" "${compose_args[@]}" >>"$LOG_FILE" 2>&1; then
+    return 0
+  fi
+
+  warn "Docker Compose failed. Showing last ${COMPOSE_LOG_TAIL_LINES} log lines:"
+  tail -n "$COMPOSE_LOG_TAIL_LINES" "$LOG_FILE" >&2
+  return 1
 }
 
 ensure_docker_daemon() {
@@ -567,7 +626,7 @@ main() {
   local compose_file="$INSTALL_DIR/docker-compose.install.yml"
   step "Building and starting containers"
   info "Deploying stack with Docker Compose ..."
-  run "${COMPOSE_CMD[@]}" -f "$compose_file" up -d --build
+  run_compose_stack "$compose_file" || die "Docker Compose deployment failed. Check detailed logs at $LOG_FILE."
 
   success "Deployment completed."
   success "App URL: http://localhost:${app_port}"
