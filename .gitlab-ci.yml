@@ -59,6 +59,7 @@ docker_build_ci:
     - docker:27.1.1-dind
   script:
     - docker build -t githree:ci .
+    - docker run --rm githree:ci githree --help
 
 docker_publish_gitlab:
   stage: docker
