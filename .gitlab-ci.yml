@@ -19,11 +19,12 @@ variables:
 
 backend_ci:
   stage: backend
-  image: rust:1.85-slim
+  image: rust:1.94-slim
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends libssl-dev pkg-config libgit2-dev cmake ca-certificates git
     - rm -rf /var/lib/apt/lists/*
+    - rustup component add rustfmt clippy
   cache:
     key: cargo-${CI_COMMIT_REF_SLUG}
     paths:
