@@ -56,7 +56,6 @@
       </a>
       <nav aria-label="Global" class="hidden items-center gap-4 text-sm md:flex">
         <a class="link-muted" href="/">Repositories</a>
-        <a class="link-muted" href="/errors">Errors</a>
         <a class="link-muted" href={siteUrl} rel="noreferrer" target="_blank">
           {domainLabel}
         </a>

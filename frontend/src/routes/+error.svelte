@@ -1,17 +1,12 @@
 <script lang="ts">
   import { getErrorDefinition } from '$lib/error-codes';
 
-  interface RouteError {
-    message?: string;
-    code?: string;
-  }
-
   interface Props {
     status: number;
-    error: RouteError;
+    error: unknown;
   }
 
-  let { status, error }: Props = $props();
+  let { status }: Props = $props();
 
   const definition = $derived(getErrorDefinition(status));
   const title = $derived(definition?.title ?? 'Unexpected Error');
@@ -21,7 +16,6 @@
   const guidance = $derived(
     definition?.guidance ?? 'Try refreshing the page. If this persists, check backend logs.'
   );
-  const message = $derived(error?.message?.trim() ?? '');
 </script>
 
 <section class="card-surface mx-auto max-w-3xl overflow-hidden">
@@ -39,18 +33,9 @@
       <p class="mt-2 text-sm text-[#c9d1d9]">{guidance}</p>
     </div>
 
-    {#if message.length > 0}
-      <div class="rounded-md border gt-divider bg-[#0d1117] p-4">
-        <h2 class="text-sm font-semibold text-[#f0f6fc]">Error details</h2>
-        <code class="mt-2 block whitespace-pre-wrap text-xs text-[#c9d1d9]">{message}</code>
-      </div>
-    {/if}
-
     <div class="flex flex-wrap items-center gap-2">
       <a class="btn btn-primary" href="/">Go home</a>
-      <a class="btn" href="/errors">View error reference</a>
       <button class="btn" onclick={() => window.history.back()} type="button">Go back</button>
     </div>
   </div>
 </section>
-
