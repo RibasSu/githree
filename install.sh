@@ -32,6 +32,10 @@ PROMPT_INPUT="/dev/stdin"
 GITHREECTL_CONFIG_PATH=""
 GITHREECTL_BINARY_PATH=""
 GITHREECTL_INSTALL_ROOT=""
+CONTAINER_APP_UID=10001
+CONTAINER_APP_GID=10001
+SSH_ASSETS_DIR="$INSTALL_DIR/ssh"
+SSH_ENABLED_FOR_CONTAINER="no"
 
 if [[ -t 1 && -w /dev/tty ]]; then
   HAS_TTY=1
@@ -884,6 +888,42 @@ primary_domain_from_csv() {
   fi
 }
 
+detect_default_ssh_key_path() {
+  local ssh_dir="$1"
+  local candidate
+  for candidate in \
+    "${ssh_dir}/id_ed25519" \
+    "${ssh_dir}/id_rsa" \
+    "${ssh_dir}/id_ecdsa" \
+    "${ssh_dir}/id_dsa"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  printf '%s\n' "${ssh_dir}/id_rsa"
+}
+
+stage_ssh_assets_for_container() {
+  local private_key_path="$1"
+  local known_hosts_path="$2"
+
+  [[ -f "$private_key_path" ]] || die "SSH private key not found: $private_key_path"
+  [[ -f "$known_hosts_path" ]] || die "SSH known_hosts not found: $known_hosts_path"
+
+  run mkdir -p "$SSH_ASSETS_DIR"
+  run cp "$private_key_path" "$SSH_ASSETS_DIR/id_key"
+  run cp "$known_hosts_path" "$SSH_ASSETS_DIR/known_hosts"
+  run chmod 600 "$SSH_ASSETS_DIR/id_key"
+  run chmod 644 "$SSH_ASSETS_DIR/known_hosts"
+
+  if ! run_privileged chown "$CONTAINER_APP_UID:$CONTAINER_APP_GID" "$SSH_ASSETS_DIR/id_key" "$SSH_ASSETS_DIR/known_hosts"; then
+    warn "Could not chown SSH assets to ${CONTAINER_APP_UID}:${CONTAINER_APP_GID}. SSH in container may fail due to file permissions."
+  fi
+
+  info "Prepared container SSH assets at: $SSH_ASSETS_DIR"
+}
+
 write_compose_file() {
   local app_port="$1"
   local rust_log="$2"
@@ -894,11 +934,15 @@ write_compose_file() {
   local caddy_https_port="$7"
   local primary_domain="$8"
   local hosted_domains="$9"
+  local ssh_enabled="${10}"
+  local ssh_assets_dir="${11}"
 
   local compose_file="$INSTALL_DIR/docker-compose.install.yml"
   local caddy_block=""
   local caddy_volume_block=""
   local runtime_block=""
+  local ssh_env_block=""
+  local ssh_volume_block=""
 
   if [[ "$deploy_mode" == "image" ]]; then
     runtime_block=$(cat <<EOF
@@ -940,6 +984,18 @@ EOF
 )
   fi
 
+  if [[ "$ssh_enabled" == "yes" ]]; then
+    ssh_env_block=$(cat <<'EOF'
+      - GITHREE_SSH_PRIVATE_KEY_PATH=/app/ssh/id_key
+      - GITHREE_SSH_KNOWN_HOSTS_PATH=/app/ssh/known_hosts
+EOF
+)
+    ssh_volume_block=$(cat <<EOF
+      - ${ssh_assets_dir}:/app/ssh:ro
+EOF
+)
+  fi
+
   cat >"$compose_file" <<EOF
 services:
   githree:
@@ -951,10 +1007,12 @@ ${runtime_block}
     volumes:
       - githree_data:/app/data
       - ${PROJECT_DIR}/config:/app/config:ro
+${ssh_volume_block}
     environment:
       - RUST_LOG=${rust_log}
       - GITHREE_DOMAIN=${primary_domain}
       - GITHREE_DOMAINS=${hosted_domains}
+${ssh_env_block}
 ${caddy_block}
 
 volumes:
@@ -1143,8 +1201,26 @@ main() {
   primary_domain="$(primary_domain_from_csv "$hosted_domains")"
   info "Configured hosted domains: ${hosted_domains}"
 
+  if prompt_yes_no "Configure SSH key + known_hosts inside container for SSH repositories?" "yes"; then
+    local default_ssh_dir="${HOME:-/root}/.ssh"
+    local ssh_dir
+    ssh_dir="$(prompt "Host SSH directory" "$default_ssh_dir")"
+    local ssh_key_path_default
+    ssh_key_path_default="$(detect_default_ssh_key_path "$ssh_dir")"
+    local ssh_key_path
+    ssh_key_path="$(prompt "Private key path for container SSH git access" "$ssh_key_path_default")"
+    local known_hosts_path
+    known_hosts_path="$(prompt "known_hosts path for container SSH host verification" "${ssh_dir}/known_hosts")"
+
+    stage_ssh_assets_for_container "$ssh_key_path" "$known_hosts_path"
+    SSH_ENABLED_FOR_CONTAINER="yes"
+  else
+    SSH_ENABLED_FOR_CONTAINER="no"
+    info "Container SSH assets setup skipped. SSH repository URLs may fail inside container."
+  fi
+
   step "Generating compose and optional proxy configuration"
-  write_compose_file "$app_port" "$rust_log" "$use_caddy" "$DEPLOY_MODE" "$image_ref" "$caddy_http_port" "$caddy_https_port" "$primary_domain" "$hosted_domains"
+  write_compose_file "$app_port" "$rust_log" "$use_caddy" "$DEPLOY_MODE" "$image_ref" "$caddy_http_port" "$caddy_https_port" "$primary_domain" "$hosted_domains" "$SSH_ENABLED_FOR_CONTAINER" "$SSH_ASSETS_DIR"
 
   local compose_file="$INSTALL_DIR/docker-compose.install.yml"
   step "Deploying containers"
@@ -1170,6 +1246,11 @@ main() {
   success "Deployment completed."
   success "App URL: http://localhost:${app_port}"
   info "Hosted domains: ${hosted_domains}"
+  if [[ "$SSH_ENABLED_FOR_CONTAINER" == "yes" ]]; then
+    info "Container SSH support: enabled (mounted from ${SSH_ASSETS_DIR})"
+  else
+    info "Container SSH support: disabled"
+  fi
   info "Manage this installed stack with:"
   if [[ -n "$GITHREECTL_BINARY_PATH" ]]; then
     info "  githreectl status"
