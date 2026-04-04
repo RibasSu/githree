@@ -147,13 +147,23 @@
     return `'${value.replaceAll("'", "'\"'\"'")}'`;
   }
 
+  function buildDockerCommand(subcommand: string): string {
+    return `docker compose -f .run/install/docker-compose.install.yml exec -T githree githree ${subcommand}`;
+  }
+
   function buildAddCommand(url: string, alias?: string): string {
     const urlArg = shellQuote(url);
     const nameArg = alias?.trim().length ? ` --name ${shellQuote(alias.trim())}` : '';
     const subcommand = `repo add --url ${urlArg}${nameArg}`;
 
     return [
-      '# Docker (recommended)',
+      '# Docker (installer stack - recommended)',
+      buildDockerCommand(subcommand),
+      '',
+      '# If docker socket is restricted, run with sudo',
+      `sudo ${buildDockerCommand(subcommand)}`,
+      '',
+      '# Docker (repository root compose fallback)',
       `docker compose exec -T githree githree ${subcommand}`,
       '',
       '# Local fallback (from repository root)',
@@ -166,7 +176,13 @@
     const subcommand = `repo remove --name ${nameArg}`;
 
     return [
-      '# Docker (recommended)',
+      '# Docker (installer stack - recommended)',
+      buildDockerCommand(subcommand),
+      '',
+      '# If docker socket is restricted, run with sudo',
+      `sudo ${buildDockerCommand(subcommand)}`,
+      '',
+      '# Docker (repository root compose fallback)',
       `docker compose exec -T githree githree ${subcommand}`,
       '',
       '# Local fallback (from repository root)',
