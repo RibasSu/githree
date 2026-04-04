@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_SOURCE="$0"
+if [[ -n "${BASH_SOURCE:-}" ]]; then
+  SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+fi
+if [[ "$SCRIPT_SOURCE" == "bash" || "$SCRIPT_SOURCE" == "-" ]]; then
+  ROOT_DIR="$(pwd)"
+else
+  ROOT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd)"
+fi
 RUN_DIR="$ROOT_DIR/.run"
 LOG_DIR="$ROOT_DIR/.logs"
 INSTALL_DIR="$RUN_DIR/install"
@@ -20,9 +28,13 @@ DOCKER_STARTUP_ATTEMPTS=60
 APP_HEALTH_ATTEMPTS=45
 SOURCE_REPO_URL="https://github.com/RibasSu/githree.git"
 FALLBACK_PROJECT_DIR="$INSTALL_DIR/source/githree"
+PROMPT_INPUT="/dev/stdin"
 
 if [[ -t 1 && -w /dev/tty ]]; then
   HAS_TTY=1
+fi
+if [[ -r /dev/tty ]]; then
+  PROMPT_INPUT="/dev/tty"
 fi
 
 mkdir -p "$RUN_DIR" "$LOG_DIR" "$INSTALL_DIR"
@@ -129,6 +141,10 @@ for arg in "$@"; do
   esac
 done
 
+if [[ $ASSUME_YES -eq 0 && ! -r /dev/tty ]]; then
+  ASSUME_YES=1
+fi
+
 SUDO_BIN=""
 if [[ "$(id -u)" -ne 0 ]]; then
   if command -v sudo >/dev/null 2>&1; then
@@ -168,10 +184,10 @@ prompt() {
     return 0
   fi
   if [[ -n "$default_value" ]]; then
-    read -r -p "$(format_prompt "$prompt_text [$default_value]: ")" result
+    read -r -p "$(format_prompt "$prompt_text [$default_value]: ")" result < "$PROMPT_INPUT"
     printf '%s\n' "${result:-$default_value}"
   else
-    read -r -p "$(format_prompt "$prompt_text: ")" result
+    read -r -p "$(format_prompt "$prompt_text: ")" result < "$PROMPT_INPUT"
     printf '%s\n' "$result"
   fi
 }
@@ -194,7 +210,7 @@ prompt_yes_no() {
   [[ "$default_choice" == "yes" ]] && suffix="[Y/n]"
 
   while true; do
-    read -r -p "$(format_prompt "$question $suffix ")" input
+    read -r -p "$(format_prompt "$question $suffix ")" input < "$PROMPT_INPUT"
     input="${input,,}"
     if [[ -z "$input" ]]; then
       [[ "$default_choice" == "yes" ]]
