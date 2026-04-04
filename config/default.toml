@@ -22,6 +22,7 @@ credentials = []
 
 [features]
 web_repo_management = false
+show_repo_controls = true
 
 [branding]
 app_name = "Githree"

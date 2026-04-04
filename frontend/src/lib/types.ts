@@ -107,6 +107,7 @@ export interface ApiError {
 
 export interface AppSettings {
   web_repo_management: boolean;
+  show_repo_controls?: boolean;
   repos_dir: string;
   registry_file: string;
   app_name?: string;

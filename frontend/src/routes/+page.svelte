@@ -14,8 +14,10 @@
   let generatedAddCommand = $state('');
   let generatingCommand = $state(false);
   let repoUrlError = $state('');
+  let runnerMode = $state<'auto' | 'docker' | 'sudo-docker'>('auto');
 
   const webRepoManagement = $derived(settings?.web_repo_management ?? false);
+  const showRepoControls = $derived(settings?.show_repo_controls ?? true);
   const commandRegistryFile = $derived(settings?.registry_file || './data/repos.json');
 
   const filteredRepos = $derived(
@@ -32,6 +34,7 @@
     } catch {
       settings = {
         web_repo_management: false,
+        show_repo_controls: true,
         repos_dir: './data/repos',
         registry_file: './data/repos.json'
       };
@@ -95,6 +98,7 @@
 
   async function removeRepo(name: string) {
     if (!webRepoManagement) {
+      if (!showRepoControls) return;
       await copyCommand(buildRemoveCommand(name), `Remove command for ${name} copied.`);
       return;
     }
@@ -146,63 +150,20 @@
     return `'${value.replaceAll("'", "'\"'\"'")}'`;
   }
 
-  function buildDockerCommand(subcommand: string): string {
-    return `docker compose -f .run/install/docker-compose.install.yml exec -T githree githree ${subcommand}`;
-  }
-
   function buildGithreectlCommand(subcommand: string): string {
-    return `githreectl ${subcommand}`;
+    const runnerFlag = runnerMode === 'auto' ? '' : `--runner ${runnerMode} `;
+    return `githreectl ${runnerFlag}${subcommand}`;
   }
 
   function buildAddCommand(url: string, alias?: string): string {
     const urlArg = shellQuote(url);
     const nameArg = alias?.trim().length ? ` --name ${shellQuote(alias.trim())}` : '';
-    const subcommand = `repo add --url ${urlArg}${nameArg}`;
-
-    return [
-      '# Host CLI (recommended after install.sh)',
-      buildGithreectlCommand(subcommand),
-      '',
-      '# If githreectl is outside PATH',
-      `~/.local/bin/${buildGithreectlCommand(subcommand)}`,
-      '',
-      '# Docker (installer stack - recommended)',
-      buildDockerCommand(subcommand),
-      '',
-      '# If docker socket is restricted, run with sudo',
-      `sudo ${buildDockerCommand(subcommand)}`,
-      '',
-      '# Docker (repository root compose fallback)',
-      `docker compose exec -T githree githree ${subcommand}`,
-      '',
-      '# Local fallback (from repository root)',
-      `cargo run --manifest-path backend/Cargo.toml -- ${subcommand}`
-    ].join('\n');
+    return buildGithreectlCommand(`repo add --url ${urlArg}${nameArg}`);
   }
 
   function buildRemoveCommand(name: string): string {
     const nameArg = shellQuote(name);
-    const subcommand = `repo remove --name ${nameArg}`;
-
-    return [
-      '# Host CLI (recommended after install.sh)',
-      buildGithreectlCommand(subcommand),
-      '',
-      '# If githreectl is outside PATH',
-      `~/.local/bin/${buildGithreectlCommand(subcommand)}`,
-      '',
-      '# Docker (installer stack - recommended)',
-      buildDockerCommand(subcommand),
-      '',
-      '# If docker socket is restricted, run with sudo',
-      `sudo ${buildDockerCommand(subcommand)}`,
-      '',
-      '# Docker (repository root compose fallback)',
-      `docker compose exec -T githree githree ${subcommand}`,
-      '',
-      '# Local fallback (from repository root)',
-      `cargo run --manifest-path backend/Cargo.toml -- ${subcommand}`
-    ].join('\n');
+    return buildGithreectlCommand(`repo remove --name ${nameArg}`);
   }
 
   function fuzzyMatch(value: string, needle: string): boolean {
@@ -221,65 +182,75 @@
 </script>
 
 <section class="space-y-6">
-  <div class="card-surface p-4">
-    <h1 class="text-lg font-semibold text-[#f0f6fc]">Add a Repository</h1>
-    <p class="mt-1 text-sm gt-muted">
-      {#if webRepoManagement}
-        Paste any GitHub, GitLab, or self-hosted git URL (SSH or HTTPS).
-      {:else}
-        Web repository management is disabled. Generate a CLI command and run it in your shell.
-      {/if}
-    </p>
-    <form class="mt-4 grid gap-3 md:grid-cols-[1fr_240px_auto]" novalidate onsubmit={submitRepo}>
-      <input
-        bind:value={repoUrl}
-        aria-describedby="repo-url-error"
-        aria-invalid={repoUrlError.length > 0}
-        class="input"
-        oninput={() => {
-          if (repoUrlError.length > 0) {
-            repoUrlError = '';
-          }
-        }}
-        placeholder="https://github.com/user/repo.git or git@github.com:user/repo.git"
-        type="text"
-      />
-      <input bind:value={repoAlias} class="input" placeholder="Optional alias (e.g. my-repo)" type="text" />
-      <button class="btn btn-primary justify-center" disabled={generatingCommand} type="submit">
+  {#if showRepoControls}
+    <div class="card-surface p-4">
+      <h1 class="text-lg font-semibold text-[#f0f6fc]">Add a Repository</h1>
+      <p class="mt-1 text-sm gt-muted">
         {#if webRepoManagement}
-          Add Repo
+          Paste any GitHub, GitLab, or self-hosted git URL (SSH or HTTPS).
         {:else}
-          Generate CLI Command
+          Web repository management is disabled. Generate a CLI command and run it in your shell.
         {/if}
-      </button>
-    </form>
-    {#if repoUrlError.length > 0}
-      <p class="mt-2 text-sm text-[#da3633]" id="repo-url-error" role="alert">{repoUrlError}</p>
-    {/if}
+      </p>
+      <form class="mt-4 grid gap-3 md:grid-cols-[1fr_240px_auto]" novalidate onsubmit={submitRepo}>
+        <input
+          bind:value={repoUrl}
+          aria-describedby="repo-url-error"
+          aria-invalid={repoUrlError.length > 0}
+          class="input"
+          oninput={() => {
+            if (repoUrlError.length > 0) {
+              repoUrlError = '';
+            }
+          }}
+          placeholder="https://github.com/user/repo.git or git@github.com:user/repo.git"
+          type="text"
+        />
+        <input bind:value={repoAlias} class="input" placeholder="Optional alias (e.g. my-repo)" type="text" />
+        <button class="btn btn-primary justify-center" disabled={generatingCommand} type="submit">
+          {#if webRepoManagement}
+            Add Repo
+          {:else}
+            Generate CLI Command
+          {/if}
+        </button>
+      </form>
+      {#if repoUrlError.length > 0}
+        <p class="mt-2 text-sm text-[#da3633]" id="repo-url-error" role="alert">{repoUrlError}</p>
+      {/if}
 
-    {#if !webRepoManagement}
-      <div class="mt-4 rounded-sm border gt-divider bg-[#0d1117] p-3 text-xs">
-        <p class="gt-muted">
-          Repository changes must be done via command line and persisted in:
-          <code class="ml-1 text-[#c9d1d9]">{commandRegistryFile}</code>
-        </p>
-        {#if generatedAddCommand.length > 0}
-          <div class="mt-3 space-y-2">
-            <pre class="overflow-x-auto rounded-sm border gt-divider bg-[#010409] p-3 text-[#c9d1d9]">{generatedAddCommand}</pre>
-            <div>
-              <button
-                class="btn"
-                onclick={() => copyCommand(generatedAddCommand, 'Add command copied.')}
-                type="button"
-              >
-                Copy Add Command
-              </button>
-            </div>
+      {#if !webRepoManagement}
+        <div class="mt-4 rounded-sm border gt-divider bg-[#0d1117] p-3 text-xs">
+          <div class="mb-3 flex flex-wrap items-center gap-2">
+            <label class="text-[11px] font-semibold uppercase tracking-wide gt-muted" for="runner-mode">Runner</label>
+            <select bind:value={runnerMode} class="input h-9 w-[220px]" id="runner-mode">
+              <option value="auto">auto (recommended)</option>
+              <option value="docker">docker</option>
+              <option value="sudo-docker">sudo-docker</option>
+            </select>
           </div>
-        {/if}
-      </div>
-    {/if}
-  </div>
+          <p class="gt-muted">
+            Repository changes must be done via command line and persisted in:
+            <code class="ml-1 text-[#c9d1d9]">{commandRegistryFile}</code>
+          </p>
+          {#if generatedAddCommand.length > 0}
+            <div class="mt-3 space-y-2">
+              <pre class="overflow-x-auto rounded-sm border gt-divider bg-[#010409] p-3 text-[#c9d1d9]">{generatedAddCommand}</pre>
+              <div>
+                <button
+                  class="btn"
+                  onclick={() => copyCommand(generatedAddCommand, 'Add command copied.')}
+                  type="button"
+                >
+                  Copy Add Command
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <div class="flex flex-wrap items-center justify-between gap-3">
     <h2 class="text-lg font-semibold text-[#f0f6fc]">Registered Repositories</h2>
@@ -292,8 +263,10 @@
     <div class="card-surface p-6 text-sm gt-muted">
       {#if webRepoManagement}
         No repositories found. Add your first repository URL above.
-      {:else}
+      {:else if showRepoControls}
         No repositories found. Generate and run an add command above.
+      {:else}
+        No repositories found.
       {/if}
     </div>
   {:else}
@@ -309,6 +282,7 @@
           onCopyRemoveCommand={removeRepo}
           onFetch={fetchRepo}
           onRemove={removeRepo}
+          {showRepoControls}
           {webRepoManagement}
         />
       {/each}

@@ -70,9 +70,16 @@ pub struct RepoCredential {
     pub password: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct FeaturesConfig {
+    #[serde(default)]
     pub web_repo_management: bool,
+    #[serde(default = "default_show_repo_controls")]
+    pub show_repo_controls: bool,
+}
+
+fn default_show_repo_controls() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -138,6 +145,15 @@ impl Default for FetchConfig {
     }
 }
 
+impl Default for FeaturesConfig {
+    fn default() -> Self {
+        Self {
+            web_repo_management: false,
+            show_repo_controls: true,
+        }
+    }
+}
+
 impl Default for BrandingConfig {
     fn default() -> Self {
         Self {
@@ -189,6 +205,10 @@ impl AppConfig {
         if let Ok(value) = env::var("GITHREE_WEB_REPO_MANAGEMENT") {
             cfg.features.web_repo_management =
                 parse_bool_env_for("GITHREE_WEB_REPO_MANAGEMENT", &value)?;
+        }
+        if let Ok(value) = env::var("GITHREE_SHOW_REPO_CONTROLS") {
+            cfg.features.show_repo_controls =
+                parse_bool_env_for("GITHREE_SHOW_REPO_CONTROLS", &value)?;
         }
         if let Ok(value) = env::var("GITHREE_APP_NAME") {
             cfg.branding.app_name = value;
@@ -504,6 +524,7 @@ interval_minutes = 5
 
 [features]
 web_repo_management = true
+show_repo_controls = true
 
 [branding]
 app_name = "Githree Config"
@@ -525,6 +546,7 @@ args = []
         unsafe {
             env::set_var("GITHREE_CONFIG", &config_path);
             env::set_var("GITHREE_WEB_REPO_MANAGEMENT", "off");
+            env::set_var("GITHREE_SHOW_REPO_CONTROLS", "off");
             env::set_var("GITHREE_FETCH_INTERVAL", "2m");
             env::set_var("GITHREE_APP_NAME", "Githree Env");
             env::set_var("GITHREE_CADDY_ENABLED", "on");
@@ -533,6 +555,7 @@ args = []
 
         let loaded = AppConfig::load().expect("load config");
         assert!(!loaded.features.web_repo_management);
+        assert!(!loaded.features.show_repo_controls);
         assert_eq!(
             loaded.fetch.sync_interval().expect("sync interval"),
             Duration::from_secs(120)
@@ -550,6 +573,7 @@ args = []
         unsafe {
             env::remove_var("GITHREE_CONFIG");
             env::remove_var("GITHREE_WEB_REPO_MANAGEMENT");
+            env::remove_var("GITHREE_SHOW_REPO_CONTROLS");
             env::remove_var("GITHREE_FETCH_INTERVAL");
             env::remove_var("GITHREE_APP_NAME");
             env::remove_var("GITHREE_CADDY_ENABLED");

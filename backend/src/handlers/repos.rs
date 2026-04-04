@@ -14,6 +14,7 @@ use crate::state::AppState;
 #[derive(Debug, Serialize)]
 pub struct SettingsResponse {
     pub web_repo_management: bool,
+    pub show_repo_controls: bool,
     pub repos_dir: String,
     pub registry_file: String,
     pub app_name: String,
@@ -29,6 +30,7 @@ pub async fn get_settings(
 ) -> Result<Json<SettingsResponse>, AppError> {
     Ok(Json(SettingsResponse {
         web_repo_management: state.config.features.web_repo_management,
+        show_repo_controls: state.config.features.show_repo_controls,
         repos_dir: state.config.storage.repos_dir.clone(),
         registry_file: state.config.storage.registry_file.clone(),
         app_name: state.config.branding.app_name.clone(),
@@ -234,6 +236,7 @@ mod tests {
             repos: ReposConfig::default(),
             features: FeaturesConfig {
                 web_repo_management: true,
+                show_repo_controls: true,
             },
             branding: BrandingConfig::default(),
             caddy: CaddyConfig::default(),

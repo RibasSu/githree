@@ -172,6 +172,7 @@ pub fn test_config(base: &Path) -> AppConfig {
         repos: ReposConfig::default(),
         features: FeaturesConfig {
             web_repo_management: true,
+            show_repo_controls: true,
         },
         branding: BrandingConfig::default(),
         caddy: CaddyConfig::default(),
