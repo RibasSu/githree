@@ -37,8 +37,11 @@ The goal is simple: browse any git repository (public or private, when credentia
   - backend (`cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`)
   - frontend (`bun run check`, `bun run build`)
   - Docker image build verification (`docker build`)
+  - Container publish to GitLab Registry (`$CI_REGISTRY_IMAGE`)
+    - automatic on tags
+    - manual on `main` / `master`
 
-The GitLab pipeline is test-only (no deployment/publish job).
+The GitLab pipeline validates build/test and can publish the Docker image to the GitLab Container Registry.
 
 ## Repository Layout
 
