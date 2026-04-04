@@ -10,6 +10,7 @@ LOG_FILE="$LOG_DIR/install-${TIMESTAMP}.log"
 HAS_TTY=0
 USE_COLOR=0
 STEP_INDEX=0
+DOCKER_NEEDS_SUDO=0
 
 if [[ -t 1 && -w /dev/tty ]]; then
   HAS_TTY=1
@@ -310,9 +311,51 @@ detect_compose() {
   die "Docker Compose is not available. Install Docker Compose plugin and rerun."
 }
 
+can_access_docker_without_sudo() {
+  docker info >/dev/null 2>&1
+}
+
+docker_access_error_output() {
+  docker info 2>&1 >/dev/null || true
+}
+
+docker_access_denied_to_socket() {
+  local err
+  err="$(docker_access_error_output)"
+  [[ "$err" == *"permission denied while trying to connect to the docker API"* ]]
+}
+
+docker_service_is_active() {
+  if [[ "$OS_NAME" != "linux" ]]; then
+    return 1
+  fi
+  systemctl is-active --quiet docker
+}
+
+configure_compose_privilege_mode() {
+  if [[ $DOCKER_NEEDS_SUDO -ne 1 ]]; then
+    return 0
+  fi
+
+  if [[ -z "$SUDO_BIN" ]]; then
+    die "Docker requires privileged execution, but sudo is unavailable."
+  fi
+
+  COMPOSE_CMD=("$SUDO_BIN" "${COMPOSE_CMD[@]}")
+  info "Docker commands for this installer run will use sudo."
+}
+
 ensure_docker_daemon() {
-  if docker info >/dev/null 2>&1; then
+  if can_access_docker_without_sudo; then
     info "Docker daemon is running."
+    return 0
+  fi
+
+  if docker_service_is_active && docker_access_denied_to_socket; then
+    DOCKER_NEEDS_SUDO=1
+    warn "Docker daemon is running, but current user cannot access /var/run/docker.sock."
+    warn "This installer will continue using sudo for Docker commands."
+    warn "Optional permanent fix: sudo usermod -aG docker \"${USER:-$(id -un)}\" && newgrp docker"
     return 0
   fi
 
@@ -345,16 +388,28 @@ ensure_docker_daemon() {
   local spinner='|/-\'
   local spin_idx=0
   while (( attempts > 0 )); do
-    if docker info >/dev/null 2>&1; then
+    if can_access_docker_without_sudo; then
       if [[ $HAS_TTY -eq 1 ]]; then
-        printf '\r'
+        printf '\r' > /dev/tty
       fi
       info "Docker daemon is now running."
       return 0
     fi
+
+    if docker_service_is_active && docker_access_denied_to_socket; then
+      DOCKER_NEEDS_SUDO=1
+      if [[ $HAS_TTY -eq 1 ]]; then
+        printf '\r' > /dev/tty
+      fi
+      warn "Docker daemon is running, but current user cannot access /var/run/docker.sock."
+      warn "This installer will continue using sudo for Docker commands."
+      warn "Optional permanent fix: sudo usermod -aG docker \"${USER:-$(id -un)}\" && newgrp docker"
+      return 0
+    fi
+
     if [[ $HAS_TTY -eq 1 ]]; then
       printf '\r%b[WAIT]%b Docker daemon startup in progress %s (%ss left)   ' \
-        "$C_MUTED" "$C_RESET" "${spinner:spin_idx:1}" "$((attempts * 2))"
+        "$C_MUTED" "$C_RESET" "${spinner:spin_idx:1}" "$((attempts * 2))" > /dev/tty
       spin_idx=$(((spin_idx + 1) % 4))
     elif (( attempts % 10 == 0 )); then
       info "Still waiting for Docker daemon... (${attempts} checks remaining)"
@@ -364,7 +419,7 @@ ensure_docker_daemon() {
   done
 
   if [[ $HAS_TTY -eq 1 ]]; then
-    printf '\r'
+    printf '\r' > /dev/tty
   fi
   die "Docker daemon is still not available. Start Docker manually and rerun."
 }
@@ -471,6 +526,7 @@ main() {
   detect_compose
   step "Ensuring Docker daemon is ready"
   ensure_docker_daemon
+  configure_compose_privilege_mode
 
   step "Collecting deployment settings"
   local app_port
