@@ -29,18 +29,9 @@ pub fn clone_repo(
     builder.fetch_options(fetch_options);
 
     info!(%url, path = %local_path.display(), "cloning repository");
-    match builder.clone(url, local_path) {
-        Ok(repo) => Ok(repo),
-        Err(err) => {
-            if let Some(fallback_url) = ssh_to_https_fallback(url, err.message()) {
-                info!(%url, %fallback_url, "retrying clone with https fallback");
-                return builder
-                    .clone(&fallback_url, local_path)
-                    .map_err(|second_err| AppError::CloneError(second_err.to_string()));
-            }
-            Err(AppError::CloneError(err.to_string()))
-        }
-    }
+    builder
+        .clone(url, local_path)
+        .map_err(|err| AppError::CloneError(err.to_string()))
 }
 
 pub fn fetch_repo(local_path: &Path, url: &str, config: &AppConfig) -> Result<(), AppError> {
@@ -51,26 +42,9 @@ pub fn fetch_repo(local_path: &Path, url: &str, config: &AppConfig) -> Result<()
 
     let mut fetch_options = FetchOptions::new();
     fetch_options.remote_callbacks(remote_callbacks(config, url));
-    let fetch_result = remote
+    remote
         .fetch(&[] as &[&str], Some(&mut fetch_options), None)
-        .map_err(|err| AppError::GitError(err.to_string()));
-
-    match fetch_result {
-        Ok(()) => Ok(()),
-        Err(AppError::GitError(original_err)) => {
-            if let Some(fallback_url) = ssh_to_https_fallback(url, &original_err) {
-                info!(%url, %fallback_url, "retrying fetch with https fallback");
-                let mut fallback_remote = repo.remote_anonymous(&fallback_url)?;
-                let mut fallback_options = FetchOptions::new();
-                fallback_options.remote_callbacks(remote_callbacks(config, &fallback_url));
-                return fallback_remote
-                    .fetch(&[] as &[&str], Some(&mut fallback_options), None)
-                    .map_err(|err| AppError::GitError(err.to_string()));
-            }
-            Err(AppError::GitError(original_err))
-        }
-        Err(other) => Err(other),
-    }
+        .map_err(|err| AppError::GitError(err.to_string()))
 }
 
 pub fn open_bare_repo(local_path: &Path) -> Result<Repository, AppError> {
@@ -108,51 +82,6 @@ pub fn repo_size_kb(local_path: &Path) -> Result<u64, AppError> {
     }
 
     Ok(total / 1024)
-}
-
-fn ssh_to_https_fallback(url: &str, error_message: &str) -> Option<String> {
-    if !is_ssh_failure(error_message) {
-        return None;
-    }
-    ssh_to_https_url(url)
-}
-
-fn is_ssh_failure(message: &str) -> bool {
-    let lower = message.to_ascii_lowercase();
-    lower.contains("remote ssh hostkey")
-        || lower.contains("permission denied (publickey)")
-        || lower.contains("class=ssh")
-}
-
-fn ssh_to_https_url(url: &str) -> Option<String> {
-    if let Ok(parsed) = Url::parse(url) {
-        if parsed.scheme() == "ssh" {
-            let host = parsed.host_str()?;
-            if !is_https_fallback_host(host) {
-                return None;
-            }
-            let path = parsed.path().trim_start_matches('/');
-            if path.is_empty() {
-                return None;
-            }
-            return Some(format!("https://{host}/{path}"));
-        }
-        return None;
-    }
-
-    let (user, rest) = url.split_once('@')?;
-    if user != "git" {
-        return None;
-    }
-    let (host, path) = rest.split_once(':')?;
-    if !is_https_fallback_host(host) || path.trim().is_empty() {
-        return None;
-    }
-    Some(format!("https://{host}/{path}"))
-}
-
-fn is_https_fallback_host(host: &str) -> bool {
-    host.eq_ignore_ascii_case("github.com") || host.eq_ignore_ascii_case("gitlab.com")
 }
 
 fn remote_callbacks(config: &AppConfig, original_url: &str) -> RemoteCallbacks<'static> {
@@ -619,45 +548,5 @@ mod tests {
             &ssh_key,
             &content
         ));
-    }
-
-    #[test]
-    fn ssh_to_https_url_converts_github_and_gitlab_only() {
-        assert_eq!(
-            ssh_to_https_url("git@github.com:RibasSu/githree.git").as_deref(),
-            Some("https://github.com/RibasSu/githree.git")
-        );
-        assert_eq!(
-            ssh_to_https_url("git@gitlab.com:RibasSu/githree.git").as_deref(),
-            Some("https://gitlab.com/RibasSu/githree.git")
-        );
-        assert_eq!(
-            ssh_to_https_url("ssh://git@github.com/RibasSu/githree.git").as_deref(),
-            Some("https://github.com/RibasSu/githree.git")
-        );
-        assert!(ssh_to_https_url("git@example.com:org/repo.git").is_none());
-        assert!(ssh_to_https_url("https://github.com/org/repo.git").is_none());
-    }
-
-    #[test]
-    fn ssh_to_https_fallback_only_for_ssh_errors() {
-        assert!(
-            ssh_to_https_fallback(
-                "git@github.com:RibasSu/githree.git",
-                "invalid or unknown remote ssh hostkey; class=Ssh (23)"
-            )
-            .is_some()
-        );
-        assert!(
-            ssh_to_https_fallback(
-                "git@github.com:RibasSu/githree.git",
-                "permission denied (publickey)"
-            )
-            .is_some()
-        );
-        assert!(
-            ssh_to_https_fallback("git@github.com:RibasSu/githree.git", "repository not found")
-                .is_none()
-        );
     }
 }
