@@ -7,11 +7,64 @@ LOG_DIR="$ROOT_DIR/.logs"
 INSTALL_DIR="$RUN_DIR/install"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 LOG_FILE="$LOG_DIR/install-${TIMESTAMP}.log"
+HAS_TTY=0
+USE_COLOR=0
+STEP_INDEX=0
+
+if [[ -t 1 && -w /dev/tty ]]; then
+  HAS_TTY=1
+fi
 
 mkdir -p "$RUN_DIR" "$LOG_DIR" "$INSTALL_DIR"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-readonly ROOT_DIR RUN_DIR LOG_DIR INSTALL_DIR LOG_FILE
+if [[ $HAS_TTY -eq 1 && -z "${NO_COLOR:-}" ]]; then
+  USE_COLOR=1
+fi
+
+if [[ $USE_COLOR -eq 1 ]]; then
+  C_RESET=$'\033[0m'
+  C_MUTED=$'\033[38;5;245m'
+  C_INFO=$'\033[38;2;88;166;255m'
+  C_WARN=$'\033[38;2;240;180;60m'
+  C_ERROR=$'\033[38;2;255;95;95m'
+  C_SUCCESS=$'\033[38;2;64;210;120m'
+  C_PRIMARY=$'\033[38;2;240;80;50m'
+  C_BOLD=$'\033[1m'
+else
+  C_RESET=""
+  C_MUTED=""
+  C_INFO=""
+  C_WARN=""
+  C_ERROR=""
+  C_SUCCESS=""
+  C_PRIMARY=""
+  C_BOLD=""
+fi
+
+readonly ROOT_DIR RUN_DIR LOG_DIR INSTALL_DIR LOG_FILE HAS_TTY USE_COLOR
+
+print_banner() {
+  if [[ $USE_COLOR -eq 0 ]]; then
+    return
+  fi
+
+  cat <<EOF
+${C_PRIMARY}${C_BOLD}============================================================${C_RESET}
+${C_PRIMARY}${C_BOLD}  GITHREE INSTALLER${C_RESET}
+${C_MUTED}  Docker-first setup with guided checks and runtime wiring${C_RESET}
+${C_PRIMARY}${C_BOLD}============================================================${C_RESET}
+EOF
+}
+
+format_prompt() {
+  local message="$1"
+  if [[ $USE_COLOR -eq 1 ]]; then
+    printf '%b%s%b' "$C_INFO$C_BOLD" "$message" "$C_RESET"
+  else
+    printf '%s' "$message"
+  fi
+}
 
 on_error() {
   local exit_code="$?"
@@ -26,12 +79,26 @@ trap 'on_error $LINENO' ERR
 log() {
   local level="$1"
   shift
-  printf '[%s] [%s] %s\n' "$(date +'%Y-%m-%d %H:%M:%S')" "$level" "$*"
+  local color="$C_RESET"
+  case "$level" in
+    INFO) color="$C_INFO" ;;
+    WARN) color="$C_WARN" ;;
+    ERROR) color="$C_ERROR" ;;
+    SUCCESS) color="$C_SUCCESS" ;;
+    STEP) color="$C_PRIMARY" ;;
+  esac
+
+  printf '%b[%s] [%s] %s%b\n' "$color" "$(date +'%Y-%m-%d %H:%M:%S')" "$level" "$*" "$C_RESET"
 }
 
 info() { log INFO "$@"; }
 warn() { log WARN "$@" >&2; }
 die() { log ERROR "$@" >&2; exit 1; }
+success() { log SUCCESS "$@"; }
+step() {
+  STEP_INDEX=$((STEP_INDEX + 1))
+  log STEP "Step ${STEP_INDEX}: $*"
+}
 
 usage() {
   cat <<'EOF'
@@ -83,10 +150,10 @@ prompt() {
     return 0
   fi
   if [[ -n "$default_value" ]]; then
-    read -r -p "$prompt_text [$default_value]: " result
+    read -r -p "$(format_prompt "$prompt_text [$default_value]: ")" result
     printf '%s\n' "${result:-$default_value}"
   else
-    read -r -p "$prompt_text: " result
+    read -r -p "$(format_prompt "$prompt_text: ")" result
     printf '%s\n' "$result"
   fi
 }
@@ -109,7 +176,7 @@ prompt_yes_no() {
   [[ "$default_choice" == "yes" ]] && suffix="[Y/n]"
 
   while true; do
-    read -r -p "$question $suffix " input
+    read -r -p "$(format_prompt "$question $suffix ")" input
     input="${input,,}"
     if [[ -z "$input" ]]; then
       [[ "$default_choice" == "yes" ]]
@@ -275,18 +342,30 @@ ensure_docker_daemon() {
 
   info "Waiting for Docker daemon to become available..."
   local attempts=60
+  local spinner='|/-\'
+  local spin_idx=0
   while (( attempts > 0 )); do
     if docker info >/dev/null 2>&1; then
+      if [[ $HAS_TTY -eq 1 ]]; then
+        printf '\r'
+      fi
       info "Docker daemon is now running."
       return 0
     fi
-    if (( attempts % 10 == 0 )); then
+    if [[ $HAS_TTY -eq 1 ]]; then
+      printf '\r%b[WAIT]%b Docker daemon startup in progress %s (%ss left)   ' \
+        "$C_MUTED" "$C_RESET" "${spinner:spin_idx:1}" "$((attempts * 2))"
+      spin_idx=$(((spin_idx + 1) % 4))
+    elif (( attempts % 10 == 0 )); then
       info "Still waiting for Docker daemon... (${attempts} checks remaining)"
     fi
     sleep 2
     ((attempts--))
   done
 
+  if [[ $HAS_TTY -eq 1 ]]; then
+    printf '\r'
+  fi
   die "Docker daemon is still not available. Start Docker manually and rerun."
 }
 
@@ -378,16 +457,22 @@ EOF
 }
 
 main() {
+  print_banner
   info "Starting Githree Docker installer"
   info "Repository root: $ROOT_DIR"
   info "Installer log: $LOG_FILE"
 
+  step "Detecting host OS and package manager"
   detect_os
 
+  step "Checking Docker installation"
   ensure_command docker "Docker" install_docker
+  step "Checking Docker Compose availability"
   detect_compose
+  step "Ensuring Docker daemon is ready"
   ensure_docker_daemon
 
+  step "Collecting deployment settings"
   local app_port
   app_port="$(prompt "Host port for Githree web app" "3001")"
   [[ "$app_port" =~ ^[0-9]+$ ]] || die "Invalid app port: $app_port"
@@ -420,14 +505,16 @@ main() {
     write_caddy_file "$caddy_domain" "$app_port"
   fi
 
+  step "Generating compose and optional proxy configuration"
   write_compose_file "$app_port" "$rust_log" "$use_caddy" "$caddy_http_port" "$caddy_https_port"
 
   local compose_file="$INSTALL_DIR/docker-compose.install.yml"
+  step "Building and starting containers"
   info "Deploying stack with Docker Compose ..."
   run "${COMPOSE_CMD[@]}" -f "$compose_file" up -d --build
 
-  info "Deployment completed."
-  info "App URL: http://localhost:${app_port}"
+  success "Deployment completed."
+  success "App URL: http://localhost:${app_port}"
   if [[ "$use_caddy" == "yes" ]]; then
     info "Caddy enabled. Check routes with: ${COMPOSE_CMD[*]} -f $compose_file ps"
   fi
