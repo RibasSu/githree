@@ -390,8 +390,8 @@ run_compose_stack() {
     fi
 
     printf '\r' > /dev/tty
-    warn "Docker Compose failed. Showing last ${COMPOSE_LOG_TAIL_LINES} log lines:"
     tail -n "$COMPOSE_LOG_TAIL_LINES" "$LOG_FILE" >&2
+    warn "Docker Compose failed. Displayed the last ${COMPOSE_LOG_TAIL_LINES} log lines above."
     return 1
   fi
 
@@ -399,8 +399,8 @@ run_compose_stack() {
     return 0
   fi
 
-  warn "Docker Compose failed. Showing last ${COMPOSE_LOG_TAIL_LINES} log lines:"
   tail -n "$COMPOSE_LOG_TAIL_LINES" "$LOG_FILE" >&2
+  warn "Docker Compose failed. Displayed the last ${COMPOSE_LOG_TAIL_LINES} log lines above."
   return 1
 }
 
