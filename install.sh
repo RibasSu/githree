@@ -12,6 +12,11 @@ USE_COLOR=0
 STEP_INDEX=0
 DOCKER_NEEDS_SUDO=0
 COMPOSE_LOG_TAIL_LINES=60
+DEPLOY_MODE="image"
+DEFAULT_IMAGE_REPO="ghcr.io/githree/githree"
+DEFAULT_IMAGE_TAG="latest"
+DOCKER_STARTUP_ATTEMPTS=60
+APP_HEALTH_ATTEMPTS=45
 
 if [[ -t 1 && -w /dev/tty ]]; then
   HAS_TTY=1
@@ -233,6 +238,39 @@ detect_os() {
   info "Detected OS: $OS_NAME (package manager: $PKG_MANAGER)"
 }
 
+detect_default_image_repository() {
+  local origin_url repo_path owner repo
+  origin_url="$(git -C "$ROOT_DIR" remote get-url origin 2>/dev/null || true)"
+  if [[ -z "$origin_url" ]]; then
+    printf '%s\n' "$DEFAULT_IMAGE_REPO"
+    return 0
+  fi
+
+  repo_path=""
+  if [[ "$origin_url" =~ ^git@github\.com:(.+)$ ]]; then
+    repo_path="${BASH_REMATCH[1]}"
+  elif [[ "$origin_url" =~ ^https?://github\.com/(.+)$ ]]; then
+    repo_path="${BASH_REMATCH[1]}"
+  elif [[ "$origin_url" =~ ^ssh://git@github\.com/(.+)$ ]]; then
+    repo_path="${BASH_REMATCH[1]}"
+  fi
+
+  if [[ -z "$repo_path" ]]; then
+    printf '%s\n' "$DEFAULT_IMAGE_REPO"
+    return 0
+  fi
+
+  repo_path="${repo_path%.git}"
+  owner="${repo_path%%/*}"
+  repo="${repo_path##*/}"
+  if [[ -z "$owner" || -z "$repo" || "$owner" == "$repo_path" ]]; then
+    printf '%s\n' "$DEFAULT_IMAGE_REPO"
+    return 0
+  fi
+
+  printf 'ghcr.io/%s/%s\n' "${owner,,}" "${repo,,}"
+}
+
 install_docker() {
   info "Attempting Docker installation for $OS_NAME ..."
   case "$PKG_MANAGER" in
@@ -305,6 +343,7 @@ ensure_command() {
 }
 
 COMPOSE_CMD=()
+DOCKER_CMD=(docker)
 
 detect_compose() {
   if docker compose version >/dev/null 2>&1; then
@@ -351,19 +390,24 @@ configure_compose_privilege_mode() {
   fi
 
   COMPOSE_CMD=("$SUDO_BIN" "${COMPOSE_CMD[@]}")
+  DOCKER_CMD=("$SUDO_BIN" "${DOCKER_CMD[@]}")
   info "Docker commands for this installer run will use sudo."
 }
 
-run_compose_stack() {
-  local compose_file="$1"
+print_compose_failure_tail() {
+  tail -n "$COMPOSE_LOG_TAIL_LINES" "$LOG_FILE" >&2
+  warn "Docker Compose failed. Displayed the last ${COMPOSE_LOG_TAIL_LINES} log lines above."
+}
+
+run_compose_command() {
+  local progress_tag="$1"
+  shift
+  local progress_text="$1"
+  shift
+  local compose_args=("$@")
   local marker="----- docker-compose output $(date +'%Y-%m-%d %H:%M:%S') -----"
-  local compose_args=(-f "$compose_file" up -d --build)
   local spinner='|/-\'
   local spin_idx=0
-
-  if [[ $DOCKER_NEEDS_SUDO -eq 1 ]]; then
-    prime_sudo_credentials
-  fi
 
   info "Running: ${COMPOSE_CMD[*]} ${compose_args[*]}"
   info "Compose output is being written to: $LOG_FILE"
@@ -378,8 +422,8 @@ run_compose_stack() {
     local compose_pid=$!
 
     while kill -0 "$compose_pid" 2>/dev/null; do
-      printf '\r%b[BUILD]%b Building containers... %s   ' \
-        "$C_MUTED" "$C_RESET" "${spinner:spin_idx:1}" > /dev/tty
+      printf '\r%b[%s]%b %s %s   ' \
+        "$C_MUTED" "$progress_tag" "$C_RESET" "$progress_text" "${spinner:spin_idx:1}" > /dev/tty
       spin_idx=$(((spin_idx + 1) % 4))
       sleep 0.2
     done
@@ -390,8 +434,7 @@ run_compose_stack() {
     fi
 
     printf '\r' > /dev/tty
-    tail -n "$COMPOSE_LOG_TAIL_LINES" "$LOG_FILE" >&2
-    warn "Docker Compose failed. Displayed the last ${COMPOSE_LOG_TAIL_LINES} log lines above."
+    print_compose_failure_tail
     return 1
   fi
 
@@ -399,8 +442,121 @@ run_compose_stack() {
     return 0
   fi
 
-  tail -n "$COMPOSE_LOG_TAIL_LINES" "$LOG_FILE" >&2
-  warn "Docker Compose failed. Displayed the last ${COMPOSE_LOG_TAIL_LINES} log lines above."
+  print_compose_failure_tail
+  return 1
+}
+
+run_compose_stack() {
+  local compose_file="$1"
+  local deploy_mode="$2"
+
+  if [[ $DOCKER_NEEDS_SUDO -eq 1 ]]; then
+    prime_sudo_credentials
+  fi
+
+  if [[ "$deploy_mode" == "image" ]]; then
+    run_compose_command "PULL" "Pulling prebuilt image..." -f "$compose_file" pull githree || return 1
+    run_compose_command "START" "Starting containers..." -f "$compose_file" up -d || return 1
+    return 0
+  fi
+
+  run_compose_command "BUILD" "Building containers..." -f "$compose_file" up -d --build
+}
+
+print_runtime_diagnostics() {
+  local compose_file="$1"
+  {
+    echo "----- runtime diagnostics $(date +'%Y-%m-%d %H:%M:%S') -----"
+    echo "Compose ps:"
+    "${COMPOSE_CMD[@]}" -f "$compose_file" ps || true
+    echo
+    echo "Container logs (last 120 lines):"
+    "${COMPOSE_CMD[@]}" -f "$compose_file" logs --tail 120 githree || true
+    echo
+  } >>"$LOG_FILE" 2>&1
+
+  warn "Runtime diagnostics were appended to $LOG_FILE"
+}
+
+wait_for_http_ready() {
+  local app_port="$1"
+  local attempts="$APP_HEALTH_ATTEMPTS"
+  local spinner='|/-\'
+  local spin_idx=0
+  local status_code=""
+  local use_curl=0
+
+  if command -v curl >/dev/null 2>&1; then
+    use_curl=1
+  else
+    warn "curl is unavailable; using TCP socket probe for readiness checks."
+  fi
+
+  while (( attempts > 0 )); do
+    if [[ $use_curl -eq 1 ]]; then
+      status_code="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 3 "http://127.0.0.1:${app_port}/" || true)"
+    else
+      if (exec 3<>"/dev/tcp/127.0.0.1/${app_port}") >/dev/null 2>&1; then
+        status_code="200"
+        exec 3<&-
+        exec 3>&-
+      else
+        status_code="000"
+      fi
+    fi
+
+    if [[ "$status_code" =~ ^[1-5][0-9][0-9]$ ]]; then
+      if [[ $HAS_TTY -eq 1 ]]; then
+        printf '\r' > /dev/tty
+      fi
+      return 0
+    fi
+
+    if [[ $HAS_TTY -eq 1 ]]; then
+      printf '\r%b[HEALTH]%b Waiting for HTTP on 127.0.0.1:%s %s (%ss left)   ' \
+        "$C_MUTED" "$C_RESET" "$app_port" "${spinner:spin_idx:1}" "$((attempts * 2))" > /dev/tty
+      spin_idx=$(((spin_idx + 1) % 4))
+    elif (( attempts % 5 == 0 )); then
+      info "Waiting for Githree HTTP endpoint on port ${app_port}..."
+    fi
+
+    sleep 2
+    ((attempts--))
+  done
+
+  if [[ $HAS_TTY -eq 1 ]]; then
+    printf '\r' > /dev/tty
+  fi
+  return 1
+}
+
+verify_deployment_health() {
+  local compose_file="$1"
+  local app_port="$2"
+  local container_id=""
+  local container_state=""
+
+  container_id="$("${COMPOSE_CMD[@]}" -f "$compose_file" ps -q githree 2>/dev/null | head -n1 || true)"
+  if [[ -z "$container_id" ]]; then
+    warn "No container ID was returned for service 'githree'."
+    print_runtime_diagnostics "$compose_file"
+    return 1
+  fi
+
+  container_state="$("${DOCKER_CMD[@]}" inspect -f '{{.State.Status}}' "$container_id" 2>/dev/null || true)"
+  if [[ "$container_state" != "running" ]]; then
+    warn "Service 'githree' is not running (state: ${container_state:-unknown})."
+    print_runtime_diagnostics "$compose_file"
+    return 1
+  fi
+
+  if wait_for_http_ready "$app_port"; then
+    info "Verified HTTP reachability at http://127.0.0.1:${app_port}"
+    return 0
+  fi
+
+  warn "Service container is running, but HTTP endpoint did not become reachable in time."
+  print_runtime_diagnostics "$compose_file"
   return 1
 }
 
@@ -443,7 +599,7 @@ ensure_docker_daemon() {
   fi
 
   info "Waiting for Docker daemon to become available..."
-  local attempts=60
+  local attempts=$DOCKER_STARTUP_ATTEMPTS
   local spinner='|/-\'
   local spin_idx=0
   while (( attempts > 0 )); do
@@ -497,13 +653,30 @@ write_compose_file() {
   local app_port="$1"
   local rust_log="$2"
   local use_caddy="$3"
-  local caddy_http_port="$4"
-  local caddy_https_port="$5"
+  local deploy_mode="$4"
+  local image_ref="$5"
+  local caddy_http_port="$6"
+  local caddy_https_port="$7"
 
   local compose_file="$INSTALL_DIR/docker-compose.install.yml"
   local caddy_block=""
   local caddy_volume_block=""
-  local caddy_ports_block=""
+  local runtime_block=""
+
+  if [[ "$deploy_mode" == "image" ]]; then
+    runtime_block=$(cat <<EOF
+    image: ${image_ref}
+    pull_policy: always
+EOF
+)
+  else
+    runtime_block=$(cat <<EOF
+    build:
+      context: ${ROOT_DIR}
+      dockerfile: ${ROOT_DIR}/Dockerfile
+EOF
+)
+  fi
 
   if [[ "$use_caddy" == "yes" ]]; then
     caddy_block=$(cat <<EOF
@@ -534,9 +707,7 @@ EOF
 services:
   githree:
     container_name: githree
-    build:
-      context: ${ROOT_DIR}
-      dockerfile: ${ROOT_DIR}/Dockerfile
+${runtime_block}
     restart: unless-stopped
     ports:
       - "${app_port}:3001"
@@ -596,6 +767,19 @@ main() {
   local rust_log
   rust_log="$(prompt "RUST_LOG level" "info")"
 
+  local default_image_repo
+  default_image_repo="$(detect_default_image_repository)"
+  local image_ref="${default_image_repo}:${DEFAULT_IMAGE_TAG}"
+
+  if prompt_yes_no "Use prebuilt GHCR image instead of local build?" "yes"; then
+    DEPLOY_MODE="image"
+    image_ref="$(prompt "GHCR image reference (repo:tag)" "$image_ref")"
+    [[ -n "${image_ref// }" ]] || die "Image reference cannot be empty."
+  else
+    DEPLOY_MODE="build"
+    info "Local Docker build mode selected."
+  fi
+
   local use_caddy="no"
   if prompt_yes_no "Enable Caddy reverse proxy container?" "no"; then
     use_caddy="yes"
@@ -621,12 +805,20 @@ main() {
   fi
 
   step "Generating compose and optional proxy configuration"
-  write_compose_file "$app_port" "$rust_log" "$use_caddy" "$caddy_http_port" "$caddy_https_port"
+  write_compose_file "$app_port" "$rust_log" "$use_caddy" "$DEPLOY_MODE" "$image_ref" "$caddy_http_port" "$caddy_https_port"
 
   local compose_file="$INSTALL_DIR/docker-compose.install.yml"
-  step "Building and starting containers"
+  step "Deploying containers"
+  if [[ "$DEPLOY_MODE" == "image" ]]; then
+    info "Deployment mode: prebuilt image pull"
+  else
+    info "Deployment mode: local Docker build"
+  fi
   info "Deploying stack with Docker Compose ..."
-  run_compose_stack "$compose_file" || die "Docker Compose deployment failed. Check detailed logs at $LOG_FILE."
+  run_compose_stack "$compose_file" "$DEPLOY_MODE" || die "Docker Compose deployment failed. Check detailed logs at $LOG_FILE."
+
+  step "Verifying deployment health"
+  verify_deployment_health "$compose_file" "$app_port" || die "Deployment failed health verification. Check detailed logs at $LOG_FILE."
 
   success "Deployment completed."
   success "App URL: http://localhost:${app_port}"

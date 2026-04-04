@@ -31,6 +31,8 @@ The goal is simple: browse any git repository (public or private, when credentia
 ## CI
 
 - GitHub: security scanning via CodeQL workflow (`.github/workflows/codeql.yml`)
+- GitHub: container publishing to GHCR (`.github/workflows/container-publish.yml`)
+  - Publishes `ghcr.io/<owner>/githree` on `main` and tags
 - GitLab: test/build pipeline via `.gitlab-ci.yml`:
   - backend (`cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`)
   - frontend (`bun run check`, `bun run build`)
@@ -68,6 +70,7 @@ What it does:
 - Generates runtime deployment files:
   - `.run/install/docker-compose.install.yml`
   - `.run/install/Caddyfile` (when Caddy is enabled)
+- Pulls a prebuilt GHCR image by default (optional local build fallback)
 - Writes a detailed timestamped log file:
   - `.logs/install-YYYYMMDD-HHMMSS.log`
 
