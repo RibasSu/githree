@@ -115,7 +115,8 @@ fn clone_fetch_refs_tree_blob_and_commit_operations_work() {
 
     let detail =
         git::browse::commit_detail(&local_path, "main~1").expect("commit detail by revparse expr");
-    assert_eq!(detail.commit.hash, history[1].hash);
+    let expected_main_parent_hash = fixture.resolve_ref("main~1");
+    assert_eq!(detail.commit.hash, expected_main_parent_hash);
     assert!(!detail.diffs.is_empty());
 
     let initial_hash = fixture.resolve_ref("main~3");

@@ -210,6 +210,7 @@ pub async fn clone_and_register_repo(
 
 pub fn run_git(args: &[&str], cwd: Option<&Path>) {
     let mut cmd = Command::new("git");
+    cmd.args(["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"]);
     cmd.args(args);
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
@@ -226,6 +227,7 @@ pub fn run_git(args: &[&str], cwd: Option<&Path>) {
 
 pub fn git_stdout(args: &[&str], cwd: Option<&Path>) -> String {
     let mut cmd = Command::new("git");
+    cmd.args(["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"]);
     cmd.args(args);
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
