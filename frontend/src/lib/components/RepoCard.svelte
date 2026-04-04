@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ExternalLink, GitBranch, Github, Gitlab, RefreshCcw, Trash2 } from 'lucide-svelte';
+  import { ExternalLink, RefreshCcw, Trash2 } from 'lucide-svelte';
+  import SourceLogo from '$lib/components/SourceLogo.svelte';
   import type { RepoInfo } from '$lib/types';
   import { formatRelativeTime } from '$lib/time';
 
@@ -28,13 +29,7 @@
     </h3>
     <p class="mt-1 flex items-center gap-2 truncate text-xs gt-muted">
       <span class="inline-flex items-center gap-1">
-        {#if source === 'github'}
-          <Github size={14} />
-        {:else if source === 'gitlab'}
-          <Gitlab size={14} />
-        {:else}
-          <GitBranch size={14} />
-        {/if}
+        <SourceLogo size={14} source={source} />
         <span>{sourceLabel()}</span>
       </span>
       <span class="mx-1">·</span>

@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import BranchSelector from '$lib/components/BranchSelector.svelte';
   import FileTree from '$lib/components/FileTree.svelte';
+  import SourceLogo from '$lib/components/SourceLogo.svelte';
   import { api } from '$lib/api';
   import { highlightMarkdownCodeBlocks } from '$lib/markdown';
   import { formatDateTime } from '$lib/time';
@@ -13,7 +14,7 @@
     RepoInfo,
     TreeEntry
   } from '$lib/types';
-  import { BookOpen, ChevronDown, Code2, Copy, FileText, Folder, Github, Gitlab, GitBranch, Scale, Search, Shield, Tag, Users } from 'lucide-svelte';
+  import { BookOpen, ChevronDown, Code2, Copy, FileText, Folder, GitBranch, Scale, Search, Shield, Tag, Users } from 'lucide-svelte';
   import DOMPurify from 'dompurify';
   import { marked } from 'marked';
   import { onMount } from 'svelte';
@@ -673,13 +674,10 @@
     <header class="flex flex-wrap items-center justify-between gap-3 border-b gt-divider pb-3">
       <div>
         <h1 class="flex items-center gap-2 text-2xl font-semibold text-[#f0f6fc]">
-          {#if isGithubRepo}
-            <Github class="text-[#8b949e]" size={20} />
-          {:else if isGitlabRepo}
-            <Gitlab class="text-[#fc6d26]" size={20} />
-          {:else}
-            <img alt="Git" class="h-5 w-5" height="20" src="/git-logo.svg" width="20" />
-          {/if}
+          <SourceLogo
+            size={20}
+            source={isGithubRepo ? 'github' : isGitlabRepo ? 'gitlab' : 'generic'}
+          />
 
           {#if remoteCoordinates.namespace.length > 0}
             {#if remoteLinks.namespaceHref.length > 0}
