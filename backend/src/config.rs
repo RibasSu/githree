@@ -95,6 +95,8 @@ pub struct BrandingConfig {
     pub logo_url: String,
     pub site_url: String,
     pub domain: String,
+    #[serde(default = "default_branding_domains")]
+    pub domains: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -168,8 +170,13 @@ impl Default for BrandingConfig {
             logo_url: "/logo.svg".to_string(),
             site_url: "https://githree.org".to_string(),
             domain: "githree.org".to_string(),
+            domains: default_branding_domains(),
         }
     }
+}
+
+fn default_branding_domains() -> Vec<String> {
+    vec!["githree.org".to_string()]
 }
 
 impl Default for CaddyConfig {
@@ -227,8 +234,33 @@ impl AppConfig {
         if let Ok(value) = env::var("GITHREE_SITE_URL") {
             cfg.branding.site_url = value;
         }
+        let mut domain_overridden = false;
+        let mut domains_overridden = false;
         if let Ok(value) = env::var("GITHREE_DOMAIN") {
             cfg.branding.domain = value;
+            domain_overridden = true;
+        }
+        if let Ok(value) = env::var("GITHREE_DOMAINS") {
+            cfg.branding.domains = parse_domains_csv(&value);
+            domains_overridden = true;
+        }
+        if cfg.branding.domains.is_empty() {
+            if !cfg.branding.domain.trim().is_empty() {
+                cfg.branding.domains = vec![cfg.branding.domain.clone()];
+            }
+        } else if cfg.branding.domain.trim().is_empty() || (domains_overridden && !domain_overridden)
+        {
+            if let Some(first_domain) = cfg.branding.domains.first() {
+                cfg.branding.domain = first_domain.clone();
+            }
+        } else if !domains_overridden
+            && !cfg
+            .branding
+            .domains
+            .iter()
+            .any(|item| item.eq_ignore_ascii_case(&cfg.branding.domain))
+        {
+            cfg.branding.domains.insert(0, cfg.branding.domain.clone());
         }
         if let Ok(value) = env::var("GITHREE_CADDY_ENABLED") {
             cfg.caddy.enabled = parse_bool_env_for("GITHREE_CADDY_ENABLED", &value)?;
@@ -355,6 +387,32 @@ fn parse_sync_interval(value: &str) -> Result<Duration, AppError> {
         }
     };
     Ok(Duration::from_secs(seconds))
+}
+
+fn parse_domains_csv(value: &str) -> Vec<String> {
+    let mut parsed: Vec<String> = Vec::new();
+    for raw in value.split(',') {
+        let mut item = raw.trim().trim_end_matches('/').to_string();
+        if let Some(stripped) = item.strip_prefix("https://") {
+            item = stripped.to_string();
+        } else if let Some(stripped) = item.strip_prefix("http://") {
+            item = stripped.to_string();
+        }
+        if let Some((host, _)) = item.split_once('/') {
+            item = host.to_string();
+        }
+        if item.is_empty() {
+            continue;
+        }
+        if parsed
+            .iter()
+            .any(|domain| domain.eq_ignore_ascii_case(&item))
+        {
+            continue;
+        }
+        parsed.push(item);
+    }
+    parsed
 }
 
 fn resolve_config_path() -> PathBuf {
@@ -509,6 +567,14 @@ mod tests {
     }
 
     #[test]
+    fn parse_domains_csv_normalizes_and_deduplicates() {
+        let domains = parse_domains_csv(
+            " https://githree.org , githree.org , api.githree.org/ , http://api.githree.org ",
+        );
+        assert_eq!(domains, vec!["githree.org", "api.githree.org"]);
+    }
+
+    #[test]
     fn app_config_load_honors_env_overrides() {
         let _guard = env_guard();
         let temp = tempdir().expect("tempdir");
@@ -563,6 +629,7 @@ args = []
             env::set_var("GITHREE_SHOW_REPO_CONTROLS", "off");
             env::set_var("GITHREE_FETCH_INTERVAL", "2m");
             env::set_var("GITHREE_APP_NAME", "Githree Env");
+            env::set_var("GITHREE_DOMAINS", "githree.org,preview.githree.org");
             env::set_var("GITHREE_CADDY_ENABLED", "on");
             env::set_var("GITHREE_CADDY_WORKING_DIR", "~/githree");
         }
@@ -575,6 +642,10 @@ args = []
             Duration::from_secs(120)
         );
         assert_eq!(loaded.branding.app_name, "Githree Env");
+        assert_eq!(
+            loaded.branding.domains,
+            vec!["githree.org", "preview.githree.org"]
+        );
         assert!(loaded.caddy.enabled);
         assert!(loaded.caddy.working_dir.is_some());
         let caddy_working_dir = loaded.caddy.working_dir.clone().expect("working dir");
@@ -590,6 +661,7 @@ args = []
             env::remove_var("GITHREE_SHOW_REPO_CONTROLS");
             env::remove_var("GITHREE_FETCH_INTERVAL");
             env::remove_var("GITHREE_APP_NAME");
+            env::remove_var("GITHREE_DOMAINS");
             env::remove_var("GITHREE_CADDY_ENABLED");
             env::remove_var("GITHREE_CADDY_WORKING_DIR");
         }

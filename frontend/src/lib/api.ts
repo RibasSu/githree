@@ -25,12 +25,64 @@ const envApiBase =
   typeof import.meta !== 'undefined' && import.meta.env
     ? (import.meta.env.PUBLIC_API_URL as string | undefined)
     : undefined;
-const apiBase = envApiBase || 'http://localhost:3001';
+const envHostedDomains =
+  typeof import.meta !== 'undefined' && import.meta.env
+    ? (import.meta.env.PUBLIC_GITHREE_DOMAINS as string | undefined)
+    : undefined;
+const hostedDomains = parseHostedDomains(envHostedDomains);
+const apiBase = resolveApiBase(envApiBase, hostedDomains);
 
 export const apiLoading = writable(false);
 export const toasts = writable<ToastMessage[]>([]);
 const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
 const inFlightGetRequests = new Map<string, Promise<unknown>>();
+
+function parseHostedDomains(rawDomains?: string): string[] {
+  if (!rawDomains) return [];
+  const output: string[] = [];
+  for (const rawPart of rawDomains.split(',')) {
+    let entry = rawPart.trim().replace(/\/+$/, '');
+    if (!entry) continue;
+    entry = entry.replace(/^https?:\/\//i, '');
+    const slashIndex = entry.indexOf('/');
+    if (slashIndex >= 0) {
+      entry = entry.slice(0, slashIndex);
+    }
+    if (!entry) continue;
+    if (output.some((existing) => existing.toLowerCase() === entry.toLowerCase())) continue;
+    output.push(entry);
+  }
+  return output;
+}
+
+function resolveApiBase(explicitApiBase?: string, domains: string[] = []): string {
+  const normalizedExplicit = explicitApiBase?.trim().replace(/\/+$/, '');
+  if (normalizedExplicit) return normalizedExplicit;
+
+  if (typeof window === 'undefined') return '';
+
+  const currentOrigin = window.location.origin;
+  const currentHost = window.location.host.toLowerCase();
+  const currentHostname = window.location.hostname.toLowerCase();
+  if (
+    domains.length === 0 ||
+    domains.some((domain) => {
+      const normalized = domain.toLowerCase();
+      return normalized === currentHost || normalized === currentHostname;
+    })
+  ) {
+    return currentOrigin;
+  }
+
+  const fallbackDomain = domains[0];
+  const protocol = window.location.protocol === 'http:' ? 'http:' : 'https:';
+  return `${protocol}//${fallbackDomain}`;
+}
+
+function buildApiUrl(path: string): string {
+  if (apiBase.length === 0) return `/api${path}`;
+  return `${apiBase}/api${path}`;
+}
 
 function toast(message: string, type: ToastType = 'info') {
   const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -79,7 +131,7 @@ async function request<T>(
     try {
       let response: Response;
       try {
-        response = await fetch(`${apiBase}/api${path}`, {
+        response = await fetch(buildApiUrl(path), {
           method,
           headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
           body: options.body ? JSON.stringify(options.body) : undefined,

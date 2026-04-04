@@ -114,5 +114,6 @@ export interface AppSettings {
   logo_url?: string;
   site_url?: string;
   domain?: string;
+  domains?: string[];
   caddy_enabled?: boolean;
 }

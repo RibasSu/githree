@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use toml_edit::{DocumentMut, Item, Table, Value, value};
+use toml_edit::{Array, DocumentMut, Item, Table, Value, value};
 
 const DEFAULT_SERVICE_NAME: &str = "githree";
 const DEFAULT_DEPLOY_MODE: &str = "image";
@@ -62,7 +62,7 @@ fn run() -> Result<(), String> {
     }
 
     let command = options.command[0].as_str();
-    let require_compose = !matches!(command, "config" | "ui");
+    let require_compose = !matches!(command, "config" | "ui" | "domain");
     let config = ToolConfig::load(options.config_path.clone(), require_compose)?;
 
     match command {
@@ -100,12 +100,13 @@ fn run() -> Result<(), String> {
         }
         "config" => cmd_config(&config, options.runner_mode, &options.command[1..]),
         "ui" => cmd_ui(&config, options.runner_mode, &options.command[1..]),
+        "domain" => cmd_domain(&config, options.runner_mode, &options.command[1..]),
         other => Err(format!("unknown command `{other}`\n\n{}", short_usage())),
     }
 }
 
 fn short_usage() -> &'static str {
-    "Usage: githreectl [--runner <auto|docker|sudo-docker>] [--config <path>] <status|logs|up|down|restart|repo|backup|update|config|ui> [options]"
+    "Usage: githreectl [--runner <auto|docker|sudo-docker>] [--config <path>] <status|logs|up|down|restart|repo|backup|update|config|ui|domain> [options]"
 }
 
 fn print_help() {
@@ -138,6 +139,8 @@ fn print_help() {
            ui status\n\
            ui repo-controls <show|hide> [--restart]\n\
            ui web-management <enable|disable> [--restart]\n\
+           domain status\n\
+           domain set <primary-domain> [--domains <comma-separated>] [--restart]\n\
          \n\
          Environment:\n\
            GITHREECTL_CONFIG             Path to config file (default: ~/.config/githreectl/config.env)\n\
@@ -1056,6 +1059,106 @@ fn print_ui_help() {
     );
 }
 
+fn cmd_domain(config: &ToolConfig, runner_mode: RunnerMode, args: &[String]) -> Result<(), String> {
+    if args.is_empty() || matches!(args[0].as_str(), "help" | "--help" | "-h") {
+        print_domain_help();
+        return Ok(());
+    }
+
+    match args[0].as_str() {
+        "status" => {
+            let doc = read_githree_config_doc(config)?;
+            let primary = get_dotted_item(&doc, "branding.domain")
+                .and_then(Item::as_value)
+                .and_then(Value::as_str)
+                .unwrap_or("localhost");
+            let domains = get_dotted_item(&doc, "branding.domains")
+                .and_then(Item::as_value)
+                .and_then(Value::as_array)
+                .map(|array| {
+                    array
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_else(|| vec![primary.to_string()]);
+
+            println!("branding.domain = {primary}");
+            println!("branding.domains = {}", domains.join(","));
+            Ok(())
+        }
+        "set" => {
+            if args.len() < 2 {
+                return Err(
+                    "usage: githreectl domain set <primary-domain> [--domains <comma-separated>] [--restart]"
+                        .to_string(),
+                );
+            }
+
+            let primary = normalize_domain_entry(&args[1])
+                .ok_or_else(|| "primary domain cannot be empty".to_string())?;
+
+            let mut domains_csv: Option<String> = None;
+            let mut restart = false;
+            let mut index = 2usize;
+            while index < args.len() {
+                match args[index].as_str() {
+                    "--domains" => {
+                        index += 1;
+                        if index >= args.len() {
+                            return Err("missing value for --domains".to_string());
+                        }
+                        domains_csv = Some(args[index].clone());
+                        index += 1;
+                    }
+                    "--restart" => {
+                        restart = true;
+                        index += 1;
+                    }
+                    other => return Err(format!("unknown domain set option: {other}")),
+                }
+            }
+
+            let mut domains = domains_csv
+                .as_deref()
+                .map(parse_domains_csv)
+                .unwrap_or_else(|| vec![primary.clone()]);
+            if !domains
+                .iter()
+                .any(|item| item.eq_ignore_ascii_case(&primary))
+            {
+                domains.insert(0, primary.clone());
+            }
+
+            let mut doc = read_githree_config_doc(config)?;
+            set_dotted_item(&mut doc, "branding.domain", value(primary.clone()))?;
+            set_dotted_item(
+                &mut doc,
+                "branding.domains",
+                Item::Value(Value::Array(array_from_strings(&domains))),
+            )?;
+            write_githree_config_doc(config, &doc)?;
+
+            println!("branding.domain = {primary}");
+            println!("branding.domains = {}", domains.join(","));
+
+            if restart {
+                restart_service_with_runner(config, runner_mode)?;
+                println!("Service restarted: {}", config.service_name);
+            }
+            Ok(())
+        }
+        other => Err(format!("unknown domain subcommand: {other}")),
+    }
+}
+
+fn print_domain_help() {
+    println!(
+        "Usage:\n  githreectl domain status\n  githreectl domain set <primary-domain> [--domains <comma-separated>] [--restart]"
+    );
+}
+
 fn parse_restart_flag(args: &[String]) -> Result<bool, String> {
     let mut restart = false;
     for arg in args {
@@ -1210,6 +1313,50 @@ fn item_display(item: &Item) -> String {
         return "<array-of-tables>".to_string();
     }
     "<none>".to_string()
+}
+
+fn normalize_domain_entry(raw: &str) -> Option<String> {
+    let mut value = raw.trim().trim_end_matches('/').to_string();
+    if value.is_empty() {
+        return None;
+    }
+
+    if let Some(stripped) = value.strip_prefix("https://") {
+        value = stripped.to_string();
+    } else if let Some(stripped) = value.strip_prefix("http://") {
+        value = stripped.to_string();
+    }
+
+    if let Some((host, _)) = value.split_once('/') {
+        value = host.to_string();
+    }
+
+    if value.is_empty() { None } else { Some(value) }
+}
+
+fn parse_domains_csv(raw: &str) -> Vec<String> {
+    let mut output: Vec<String> = Vec::new();
+    for part in raw.split(',') {
+        let Some(normalized) = normalize_domain_entry(part) else {
+            continue;
+        };
+        if output
+            .iter()
+            .any(|existing| existing.eq_ignore_ascii_case(&normalized))
+        {
+            continue;
+        }
+        output.push(normalized);
+    }
+    output
+}
+
+fn array_from_strings(values: &[String]) -> Array {
+    let mut array = Array::new();
+    for value in values {
+        array.push(value.as_str());
+    }
+    array
 }
 
 fn parse_config_value_type(raw: &str) -> Result<ConfigValueType, String> {
@@ -1511,5 +1658,11 @@ mod tests {
         let dir = temp.path().join("no-git/here");
         fs::create_dir_all(&dir).expect("create directory");
         assert!(find_git_repo_root(&dir).is_none());
+    }
+
+    #[test]
+    fn parse_domains_csv_normalizes_and_deduplicates() {
+        let domains = parse_domains_csv(" https://githree.org , githree.org, api.githree.org/ ");
+        assert_eq!(domains, vec!["githree.org", "api.githree.org"]);
     }
 }

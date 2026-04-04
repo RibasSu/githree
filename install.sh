@@ -792,6 +792,52 @@ check_port_free() {
   return 0
 }
 
+trim_whitespace() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s\n' "$value"
+}
+
+normalize_domains_csv() {
+  local raw="$1"
+  local output=""
+  local part
+  IFS=',' read -r -a parts <<<"$raw"
+  for part in "${parts[@]}"; do
+    part="$(trim_whitespace "$part")"
+    part="${part#http://}"
+    part="${part#https://}"
+    part="${part%%/*}"
+    part="${part%/}"
+    [[ -n "$part" ]] || continue
+    if [[ ",${output}," == *",${part},"* ]]; then
+      continue
+    fi
+    if [[ -z "$output" ]]; then
+      output="$part"
+    else
+      output="${output},${part}"
+    fi
+  done
+
+  if [[ -z "$output" ]]; then
+    output="localhost"
+  fi
+  printf '%s\n' "$output"
+}
+
+primary_domain_from_csv() {
+  local csv="$1"
+  local first="${csv%%,*}"
+  first="$(trim_whitespace "$first")"
+  if [[ -z "$first" ]]; then
+    printf 'localhost\n'
+  else
+    printf '%s\n' "$first"
+  fi
+}
+
 write_compose_file() {
   local app_port="$1"
   local rust_log="$2"
@@ -800,6 +846,8 @@ write_compose_file() {
   local image_ref="$5"
   local caddy_http_port="$6"
   local caddy_https_port="$7"
+  local primary_domain="$8"
+  local hosted_domains="$9"
 
   local compose_file="$INSTALL_DIR/docker-compose.install.yml"
   local caddy_block=""
@@ -859,6 +907,8 @@ ${runtime_block}
       - ${PROJECT_DIR}/config:/app/config:ro
     environment:
       - RUST_LOG=${rust_log}
+      - GITHREE_DOMAIN=${primary_domain}
+      - GITHREE_DOMAINS=${hosted_domains}
 ${caddy_block}
 
 volumes:
@@ -904,6 +954,8 @@ write_githreectl_config() {
   local image_ref="$3"
   local project_root="$4"
   local githree_config_file="$5"
+  local primary_domain="$6"
+  local hosted_domains="$7"
   local config_path
   config_path="$(default_githreectl_config_path)"
 
@@ -916,6 +968,8 @@ service_name=githree
 deploy_mode=${deploy_mode}
 image_ref=${image_ref}
 githree_config_file=${githree_config_file}
+primary_domain=${primary_domain}
+hosted_domains=${hosted_domains}
 EOF
 
   GITHREECTL_CONFIG_PATH="$config_path"
@@ -1027,8 +1081,20 @@ main() {
     write_caddy_file "$caddy_domain" "$app_port"
   fi
 
+  local default_hosted_domains="localhost"
+  if [[ "$use_caddy" == "yes" && "$caddy_domain" != ":80" ]]; then
+    default_hosted_domains="$caddy_domain"
+  fi
+
+  local hosted_domains
+  hosted_domains="$(prompt "Hosted domain(s), comma-separated (first is primary)" "$default_hosted_domains")"
+  hosted_domains="$(normalize_domains_csv "$hosted_domains")"
+  local primary_domain
+  primary_domain="$(primary_domain_from_csv "$hosted_domains")"
+  info "Configured hosted domains: ${hosted_domains}"
+
   step "Generating compose and optional proxy configuration"
-  write_compose_file "$app_port" "$rust_log" "$use_caddy" "$DEPLOY_MODE" "$image_ref" "$caddy_http_port" "$caddy_https_port"
+  write_compose_file "$app_port" "$rust_log" "$use_caddy" "$DEPLOY_MODE" "$image_ref" "$caddy_http_port" "$caddy_https_port" "$primary_domain" "$hosted_domains"
 
   local compose_file="$INSTALL_DIR/docker-compose.install.yml"
   step "Deploying containers"
@@ -1044,7 +1110,7 @@ main() {
   verify_deployment_health "$compose_file" "$app_port" || die "Deployment failed health verification. Check detailed logs at $LOG_FILE."
 
   step "Configuring host management CLI"
-  write_githreectl_config "$compose_file" "$DEPLOY_MODE" "$image_ref" "$ROOT_DIR" "$PROJECT_DIR/config/default.toml"
+  write_githreectl_config "$compose_file" "$DEPLOY_MODE" "$image_ref" "$ROOT_DIR" "$PROJECT_DIR/config/default.toml" "$primary_domain" "$hosted_domains"
   if prompt_yes_no "Build and install githreectl host CLI now?" "yes"; then
     install_githreectl_binary || true
   else
@@ -1053,6 +1119,7 @@ main() {
 
   success "Deployment completed."
   success "App URL: http://localhost:${app_port}"
+  info "Hosted domains: ${hosted_domains}"
   info "Manage this installed stack with:"
   if [[ -n "$GITHREECTL_BINARY_PATH" ]]; then
     info "  githreectl status"

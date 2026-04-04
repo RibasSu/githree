@@ -21,6 +21,7 @@ pub struct SettingsResponse {
     pub logo_url: String,
     pub site_url: String,
     pub domain: String,
+    pub domains: Vec<String>,
     pub caddy_enabled: bool,
 }
 
@@ -37,6 +38,7 @@ pub async fn get_settings(
         logo_url: state.config.branding.logo_url.clone(),
         site_url: state.config.branding.site_url.clone(),
         domain: state.config.branding.domain.clone(),
+        domains: state.config.branding.domains.clone(),
         caddy_enabled: state.config.caddy.enabled,
     }))
 }

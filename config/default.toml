@@ -30,6 +30,7 @@ app_name = "Githree"
 logo_url = "/logo.svg"
 site_url = "https://githree.org"
 domain = "githree.org"
+domains = ["githree.org"]
 
 [caddy]
 enabled = false
