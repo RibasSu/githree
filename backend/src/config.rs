@@ -248,17 +248,18 @@ impl AppConfig {
             if !cfg.branding.domain.trim().is_empty() {
                 cfg.branding.domains = vec![cfg.branding.domain.clone()];
             }
-        } else if cfg.branding.domain.trim().is_empty() || (domains_overridden && !domain_overridden)
+        } else if cfg.branding.domain.trim().is_empty()
+            || (domains_overridden && !domain_overridden)
         {
             if let Some(first_domain) = cfg.branding.domains.first() {
                 cfg.branding.domain = first_domain.clone();
             }
         } else if !domains_overridden
             && !cfg
-            .branding
-            .domains
-            .iter()
-            .any(|item| item.eq_ignore_ascii_case(&cfg.branding.domain))
+                .branding
+                .domains
+                .iter()
+                .any(|item| item.eq_ignore_ascii_case(&cfg.branding.domain))
         {
             cfg.branding.domains.insert(0, cfg.branding.domain.clone());
         }
