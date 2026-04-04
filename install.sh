@@ -407,6 +407,52 @@ ensure_cargo_for_githreectl() {
   command -v cargo >/dev/null 2>&1
 }
 
+install_githreectl_build_tools() {
+  info "Attempting native build tools installation for $OS_NAME ..."
+  case "$PKG_MANAGER" in
+    apt)
+      run_privileged apt-get update || return 1
+      run_privileged apt-get install -y build-essential pkg-config || return 1
+      ;;
+    dnf)
+      run_privileged dnf install -y gcc gcc-c++ make pkgconf-pkg-config || return 1
+      ;;
+    pacman)
+      run_privileged pacman -Sy --noconfirm base-devel pkgconf || return 1
+      ;;
+    zypper)
+      run_privileged zypper --non-interactive install gcc gcc-c++ make pkg-config || return 1
+      ;;
+    brew)
+      run xcode-select --install || true
+      run brew install pkg-config || return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  command -v cc >/dev/null 2>&1
+}
+
+ensure_build_tools_for_githreectl() {
+  if command -v cc >/dev/null 2>&1 && command -v pkg-config >/dev/null 2>&1; then
+    return 0
+  fi
+
+  warn "Native build tools are missing (required: cc and pkg-config) to compile githreectl."
+  if ! prompt_yes_no "Install native build tools now?" "yes"; then
+    return 1
+  fi
+
+  if ! install_githreectl_build_tools; then
+    warn "Build tools installation failed or is unsupported on this host."
+    return 1
+  fi
+
+  command -v cc >/dev/null 2>&1 && command -v pkg-config >/dev/null 2>&1
+}
+
 ensure_command() {
   local cmd="$1"
   local package_name="$2"
@@ -985,6 +1031,10 @@ install_githreectl_binary() {
 
   if ! ensure_cargo_for_githreectl; then
     warn "Skipping githreectl binary install because Cargo is unavailable."
+    return 1
+  fi
+  if ! ensure_build_tools_for_githreectl; then
+    warn "Skipping githreectl binary install because native build tools are unavailable."
     return 1
   fi
 
