@@ -250,23 +250,38 @@ ensure_docker_daemon() {
   fi
 
   warn "Docker daemon is not running."
+  local user_triggered_start="no"
 
   if [[ "$OS_NAME" == "linux" ]]; then
     if prompt_yes_no "Start Docker daemon now (systemctl enable --now docker)?" "yes"; then
+      user_triggered_start="yes"
       run_privileged systemctl enable --now docker
+    else
+      die "Docker daemon is required, and startup was declined. Start Docker manually and rerun."
     fi
   else
     warn "On macOS, Docker Desktop must be running."
     if prompt_yes_no "Open Docker Desktop now?" "yes"; then
+      user_triggered_start="yes"
       run open -a Docker
+    else
+      die "Docker daemon is required, and opening Docker Desktop was declined. Start it manually and rerun."
     fi
   fi
 
+  if [[ "$user_triggered_start" != "yes" ]]; then
+    die "Docker daemon is required but was not started."
+  fi
+
+  info "Waiting for Docker daemon to become available..."
   local attempts=60
   while (( attempts > 0 )); do
     if docker info >/dev/null 2>&1; then
       info "Docker daemon is now running."
       return 0
+    fi
+    if (( attempts % 10 == 0 )); then
+      info "Still waiting for Docker daemon... (${attempts} checks remaining)"
     fi
     sleep 2
     ((attempts--))
