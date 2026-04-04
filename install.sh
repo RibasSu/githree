@@ -131,18 +131,21 @@ step() {
 
 usage() {
   cat <<'EOF'
-Usage: ./install.sh [--yes] [--help]
+Usage: ./install.sh [--yes] [--ctl-only] [--help]
 
 Options:
   --yes, -y    Non-interactive mode using defaults where possible
+  --ctl-only   Install only githreectl host CLI (skip Docker deploy)
   --help, -h   Show this help
 EOF
 }
 
 ASSUME_YES=0
+CTL_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --yes|-y) ASSUME_YES=1 ;;
+    --ctl-only) CTL_ONLY=1 ;;
     --help|-h) usage; exit 0 ;;
     *) die "Unknown argument: $arg" ;;
   esac
@@ -1133,6 +1136,46 @@ install_githreectl_binary() {
   return 1
 }
 
+detect_ctl_only_compose_file() {
+  local candidates=(
+    "$ROOT_DIR/.run/install/docker-compose.install.yml"
+    "$PROJECT_DIR/.run/install/docker-compose.install.yml"
+    "$ROOT_DIR/docker-compose.yml"
+    "$PROJECT_DIR/docker-compose.yml"
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  printf '%s\n' "$ROOT_DIR/.run/install/docker-compose.install.yml"
+}
+
+ensure_githreectl_config_for_ctl_only() {
+  local config_path
+  config_path="$(default_githreectl_config_path)"
+
+  if [[ -f "$config_path" ]]; then
+    GITHREECTL_CONFIG_PATH="$config_path"
+    info "Using existing githreectl config: $config_path"
+    return 0
+  fi
+
+  local default_image_repo
+  default_image_repo="$(detect_default_image_repository)"
+  local image_ref="${default_image_repo}:${DEFAULT_IMAGE_TAG}"
+  local compose_file
+  compose_file="$(detect_ctl_only_compose_file)"
+
+  write_githreectl_config "$compose_file" "image" "$image_ref" "$ROOT_DIR" "$PROJECT_DIR/config/default.toml" "localhost" "localhost"
+  warn "Generated default githreectl config for CTL-only mode."
+  warn "If your stack uses another compose file, update: ${GITHREECTL_CONFIG_PATH}"
+}
+
 main() {
   print_banner
   info "Starting Githree Docker installer"
@@ -1145,6 +1188,26 @@ main() {
   step "Ensuring Githree source checkout is available"
   ensure_project_source
   info "Project source: $PROJECT_DIR"
+
+  if [[ $CTL_ONLY -eq 1 ]]; then
+    step "Configuring host management CLI only"
+    ensure_githreectl_config_for_ctl_only
+
+    if prompt_yes_no "Build and install githreectl host CLI now?" "yes"; then
+      install_githreectl_binary || die "Failed to install githreectl host CLI."
+    else
+      die "CTL-only mode requires githreectl installation."
+    fi
+
+    success "githreectl-only setup completed."
+    if [[ -n "$GITHREECTL_BINARY_PATH" ]]; then
+      info "Installed binary: ${GITHREECTL_BINARY_PATH}"
+      info "Config file: ${GITHREECTL_CONFIG_PATH}"
+      info "Try: githreectl status"
+    fi
+    info "Detailed installer log: $LOG_FILE"
+    return 0
+  fi
 
   step "Checking Docker installation"
   ensure_command docker "Docker" install_docker
