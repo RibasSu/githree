@@ -58,13 +58,40 @@ docker-compose.yml
 
 ### Guided Docker Installer (Recommended)
 
-Use the root installer to prepare and launch Githree with Docker:
+Hosted quick install:
+
+```bash
+curl --proto '=https' --tlsv1.2 -fsSL https://install.githree.org | bash
+```
+
+Hosted quick install (non-interactive defaults):
+
+```bash
+curl --proto '=https' --tlsv1.2 -fsSL https://install.githree.org | bash -s -- --yes
+```
+
+`wget` alternative:
+
+```bash
+wget -qO- https://install.githree.org | bash
+```
+
+Restricted environments (no pipe-to-shell policy, strict proxies, or shell limitations):
+
+```bash
+curl --proto '=https' --tlsv1.2 -fSL https://install.githree.org -o githree-install.sh
+less githree-install.sh
+bash githree-install.sh
+```
+
+Local script mode (inside a checkout):
 
 ```bash
 ./install.sh
+./install.sh --yes
 ```
 
-What it does:
+What the installer does:
 
 - Detects Linux/macOS and checks required dependencies (`docker`, compose support)
 - Offers to install missing dependencies immediately when possible
@@ -79,12 +106,6 @@ What it does:
   - Override repo with `GITHREE_IMAGE_REPO=<repo>`
 - Writes a detailed timestamped log file:
   - `.logs/install-YYYYMMDD-HHMMSS.log`
-
-Non-interactive mode (defaults):
-
-```bash
-./install.sh --yes
-```
 
 ### Docker
 
