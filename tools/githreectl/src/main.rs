@@ -129,7 +129,7 @@ fn print_help() {
            repo fetch --name <alias>\n\
            repo list\n\
            backup [--output <file.tar.gz>]\n\
-           update [--backup] [--output <file.tar.gz>]\n\
+           update [--backup] [--output <file.tar.gz>] [--skip-self-update]\n\
            config path\n\
            config show\n\
            config get <key>\n\
@@ -661,12 +661,17 @@ fn cmd_update(
 ) -> Result<(), String> {
     let mut backup_before_update = false;
     let mut output: Option<PathBuf> = None;
+    let mut skip_self_update = false;
     let mut index = 0usize;
 
     while index < args.len() {
         match args[index].as_str() {
             "--backup" => {
                 backup_before_update = true;
+                index += 1;
+            }
+            "--skip-self-update" => {
+                skip_self_update = true;
                 index += 1;
             }
             "--output" | "-o" => {
@@ -707,7 +712,136 @@ fn cmd_update(
 
     let mut ps = compose_prefix(config, docker_prefix);
     ps.extend(["ps".to_string(), config.service_name.clone()]);
-    run_passthrough(&ps)
+    run_passthrough(&ps)?;
+
+    if !skip_self_update {
+        let (crate_dir, install_root) = self_update_targets(config).ok_or_else(|| {
+            "githreectl self-update requires local source files. Run install.sh to bootstrap source, set GITHREECTL_SOURCE_DIR, or pass --skip-self-update."
+                .to_string()
+        })?;
+        refresh_githreectl_source(&crate_dir)?;
+        println!("Updating githreectl from {} ...", crate_dir.display());
+        update_githreectl_binary(&crate_dir, &install_root)?;
+        println!(
+            "githreectl updated in {}",
+            install_root.join("bin/githreectl").display()
+        );
+    }
+
+    Ok(())
+}
+
+fn update_githreectl_binary(crate_dir: &Path, install_root: &Path) -> Result<(), String> {
+    if !command_exists("cargo") {
+        return Err(
+            "cargo is required to self-update githreectl. Install Rust toolchain or run with --skip-self-update."
+                .to_string(),
+        );
+    }
+
+    let command = vec![
+        "cargo".to_string(),
+        "install".to_string(),
+        "--path".to_string(),
+        path_to_string(crate_dir),
+        "--force".to_string(),
+        "--root".to_string(),
+        path_to_string(install_root),
+    ];
+    run_passthrough(&command)
+}
+
+fn refresh_githreectl_source(crate_dir: &Path) -> Result<(), String> {
+    if !command_exists("git") {
+        return Ok(());
+    }
+
+    let Some(repo_root) = find_git_repo_root(crate_dir) else {
+        return Ok(());
+    };
+
+    let command = vec![
+        "git".to_string(),
+        "-C".to_string(),
+        path_to_string(&repo_root),
+        "pull".to_string(),
+        "--ff-only".to_string(),
+    ];
+
+    if let Err(err) = run_passthrough(&command) {
+        eprintln!(
+            "githreectl: warning: could not refresh source at {} ({err}). Continuing with local source.",
+            repo_root.display()
+        );
+    }
+
+    Ok(())
+}
+
+fn self_update_targets(config: &ToolConfig) -> Option<(PathBuf, PathBuf)> {
+    let crate_dir = find_githreectl_crate_dir(config)?;
+    let install_root = detect_current_install_root().unwrap_or_else(default_install_root);
+    Some((crate_dir, install_root))
+}
+
+fn find_githreectl_crate_dir(config: &ToolConfig) -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Ok(path) = env::var("GITHREECTL_SOURCE_DIR")
+        && !path.trim().is_empty()
+    {
+        candidates.push(PathBuf::from(path));
+    }
+
+    candidates.push(config.project_dir.join("tools/githreectl"));
+    candidates.push(
+        config
+            .project_dir
+            .join(".run/install/source/githree/tools/githreectl"),
+    );
+
+    if let Some(install_dir) = config.compose_file.parent()
+        && let Some(run_dir) = install_dir.parent()
+    {
+        candidates.push(run_dir.join("source/githree/tools/githreectl"));
+    }
+
+    if let Some(config_dir) = config.githree_config_file.parent()
+        && let Some(project_root) = config_dir.parent()
+    {
+        candidates.push(project_root.join("tools/githreectl"));
+    }
+
+    candidates.into_iter().find(|path| {
+        path.is_dir() && path.join("Cargo.toml").is_file() && path.join("src/main.rs").is_file()
+    })
+}
+
+fn find_git_repo_root(start: &Path) -> Option<PathBuf> {
+    let mut current = Some(start);
+    while let Some(path) = current {
+        if path.join(".git").exists() {
+            return Some(path.to_path_buf());
+        }
+        current = path.parent();
+    }
+    None
+}
+
+fn detect_current_install_root() -> Option<PathBuf> {
+    let current_exe = env::current_exe().ok()?;
+    let bin_dir = current_exe.parent()?;
+    if bin_dir.file_name().is_some_and(|name| name == "bin") {
+        return bin_dir.parent().map(Path::to_path_buf);
+    }
+    None
+}
+
+fn default_install_root() -> PathBuf {
+    if let Ok(home) = env::var("HOME") {
+        return PathBuf::from(home).join(".local");
+    }
+    PathBuf::from(".")
 }
 
 fn cmd_config(config: &ToolConfig, runner_mode: RunnerMode, args: &[String]) -> Result<(), String> {
@@ -1243,6 +1377,8 @@ fn unix_timestamp() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn parse_named_options_handles_aliases() {
@@ -1355,5 +1491,25 @@ mod tests {
 
         assert!(remove_dotted_item(&mut doc, "features.web_repo_management").expect("remove"));
         assert!(get_dotted_item(&doc, "features.web_repo_management").is_none());
+    }
+
+    #[test]
+    fn find_git_repo_root_detects_parent_repository() {
+        let temp = tempdir().expect("tempdir");
+        let repo_root = temp.path().join("repo");
+        let crate_dir = repo_root.join("tools/githreectl");
+        fs::create_dir_all(crate_dir.join("src")).expect("create crate directory");
+        fs::create_dir_all(repo_root.join(".git")).expect("create git marker");
+
+        let found = find_git_repo_root(&crate_dir).expect("git root");
+        assert_eq!(found, repo_root);
+    }
+
+    #[test]
+    fn find_git_repo_root_returns_none_outside_git_tree() {
+        let temp = tempdir().expect("tempdir");
+        let dir = temp.path().join("no-git/here");
+        fs::create_dir_all(&dir).expect("create directory");
+        assert!(find_git_repo_root(&dir).is_none());
     }
 }

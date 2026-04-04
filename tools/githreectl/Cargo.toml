@@ -5,3 +5,6 @@ edition = "2024"
 
 [dependencies]
 toml_edit = "0.22.27"
+
+[dev-dependencies]
+tempfile = "3.14.0"
