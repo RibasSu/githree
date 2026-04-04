@@ -92,23 +92,22 @@ Local script mode (inside a checkout):
 ./install.sh --yes
 ```
 
-After install, manage the running stack with the generated compose file:
-
-```bash
-docker compose -f .run/install/docker-compose.install.yml ps
-docker compose -f .run/install/docker-compose.install.yml exec -T githree githree repo list
-```
-
-If your user cannot access Docker socket, run the same commands with `sudo`.
-
-If you enabled host CLI installation during `install.sh`, you can manage everything with:
+After install, manage the running stack with `githreectl`:
 
 ```bash
 githreectl status
+githreectl logs --follow
 githreectl repo list
 githreectl repo add --url https://github.com/user/repo.git --name my-repo
 githreectl backup
 githreectl update --backup
+```
+
+If Docker socket access requires privilege, keep using `githreectl` and let it resolve the runner automatically, or force one:
+
+```bash
+githreectl --runner docker status
+githreectl --runner sudo-docker status
 ```
 
 What the installer does:
@@ -187,6 +186,7 @@ credentials = []
 
 [features]
 web_repo_management = false
+show_repo_controls = true
 
 [branding]
 app_name = "Githree"
@@ -205,31 +205,9 @@ args = []
 
 Paths in the config file are resolved relative to the config file directory (except absolute paths and `~/...` paths, which are preserved/expanded).
 
-When `web_repo_management = false`, `POST /api/repos`, `DELETE /api/repos/{name}`, and `POST /api/repos/{name}/fetch` are blocked from the web API and the frontend switches to CLI-command generation for repository add/remove operations.
+When `web_repo_management = false`, `POST /api/repos`, `DELETE /api/repos/{name}`, and `POST /api/repos/{name}/fetch` are blocked from the web API and the frontend switches to CLI-command generation.
 
-### Backend CLI Repo Commands
-
-Githree provides built-in repository management commands in the backend binary:
-
-```bash
-githree repo add --url https://github.com/user/repo.git --name my-repo
-githree repo remove --name my-repo
-githree repo fetch --name my-repo
-githree repo list
-```
-
-Docker-first usage:
-
-```bash
-docker compose exec -T githree githree repo add --url https://github.com/user/repo.git --name my-repo
-docker compose exec -T githree githree repo list
-```
-
-Local source checkout fallback:
-
-```bash
-cargo run --manifest-path backend/Cargo.toml -- repo add --url https://github.com/user/repo.git --name my-repo
-```
+Use `features.show_repo_controls = false` to hide add/remove repository controls from the UI entirely.
 
 ### `githreectl` Host CLI
 
@@ -244,6 +222,16 @@ githreectl logs --follow
 githreectl repo add --url https://github.com/user/repo.git --name my-repo
 githreectl backup --output ./backup/githree.tar.gz
 githreectl update --backup
+```
+
+UI and config control examples:
+
+```bash
+githreectl ui status
+githreectl ui repo-controls hide --restart
+githreectl ui web-management disable --restart
+githreectl config set fetch.interval 120s --restart
+githreectl config get features.show_repo_controls
 ```
 
 If it is not in your `PATH`, use:

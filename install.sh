@@ -880,6 +880,7 @@ write_githreectl_config() {
   local deploy_mode="$2"
   local image_ref="$3"
   local project_root="$4"
+  local githree_config_file="$5"
   local config_path
   config_path="$(default_githreectl_config_path)"
 
@@ -891,6 +892,7 @@ compose_file=${compose_file}
 service_name=githree
 deploy_mode=${deploy_mode}
 image_ref=${image_ref}
+githree_config_file=${githree_config_file}
 EOF
 
   GITHREECTL_CONFIG_PATH="$config_path"
@@ -1019,7 +1021,7 @@ main() {
   verify_deployment_health "$compose_file" "$app_port" || die "Deployment failed health verification. Check detailed logs at $LOG_FILE."
 
   step "Configuring host management CLI"
-  write_githreectl_config "$compose_file" "$DEPLOY_MODE" "$image_ref" "$ROOT_DIR"
+  write_githreectl_config "$compose_file" "$DEPLOY_MODE" "$image_ref" "$ROOT_DIR" "$PROJECT_DIR/config/default.toml"
   if prompt_yes_no "Build and install githreectl host CLI now?" "yes"; then
     install_githreectl_binary || true
   else
@@ -1049,12 +1051,12 @@ main() {
     info "  Build later with: cargo install --path ${PROJECT_DIR}/tools/githreectl --force --root ${fallback_install_root}"
     info "  Config file: ${GITHREECTL_CONFIG_PATH}"
   fi
-  info "  ${COMPOSE_CMD[*]} -f $compose_file ps"
-  info "  ${COMPOSE_CMD[*]} -f $compose_file logs -f githree"
-  info "  ${COMPOSE_CMD[*]} -f $compose_file exec -T githree githree repo list"
-  info "  ${COMPOSE_CMD[*]} -f $compose_file exec -T githree githree repo add --url <repo_url> --name <alias>"
+  info "  githreectl ui status"
+  info "  githreectl ui repo-controls hide --restart"
+  info "  githreectl ui web-management disable --restart"
+  info "  githreectl config set fetch.interval 120s --restart"
   if [[ "$use_caddy" == "yes" ]]; then
-    info "Caddy enabled. Check routes with: ${COMPOSE_CMD[*]} -f $compose_file ps"
+    info "Caddy enabled for this stack."
   fi
   info "Detailed installer log: $LOG_FILE"
 }
