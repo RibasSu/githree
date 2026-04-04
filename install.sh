@@ -431,7 +431,29 @@ is_valid_project_dir() {
   local candidate="$1"
   [[ -d "$candidate" ]] \
     && [[ -f "$candidate/Dockerfile" ]] \
-    && [[ -f "$candidate/config/default.toml" ]]
+    && [[ -f "$candidate/config/default.toml" ]] \
+    && [[ -f "$candidate/backend/Cargo.toml" ]] \
+    && [[ -f "$candidate/frontend/package.json" ]] \
+    && [[ -f "$candidate/tools/githreectl/Cargo.toml" ]]
+}
+
+refresh_bootstrap_source() {
+  local dir="$1"
+
+  if [[ ! -d "$dir/.git" ]]; then
+    return 1
+  fi
+
+  info "Refreshing cached bootstrapped source from ${SOURCE_REPO_URL}"
+  if git -C "$dir" fetch --depth 1 origin >/dev/null 2>&1 \
+    && git -C "$dir" reset --hard FETCH_HEAD >/dev/null 2>&1 \
+    && git -C "$dir" clean -fd >/dev/null 2>&1; then
+    info "Cached source refreshed successfully."
+    return 0
+  fi
+
+  warn "Failed to refresh cached source; installer will try existing cache contents."
+  return 1
 }
 
 ensure_project_source() {
@@ -450,6 +472,7 @@ ensure_project_source() {
 
   if is_valid_project_dir "$FALLBACK_PROJECT_DIR"; then
     info "Using cached bootstrapped source at: $FALLBACK_PROJECT_DIR"
+    refresh_bootstrap_source "$FALLBACK_PROJECT_DIR" || true
   else
     if [[ -e "$FALLBACK_PROJECT_DIR" ]]; then
       run rm -rf "$FALLBACK_PROJECT_DIR"
