@@ -46,6 +46,12 @@ pub struct GitConfig {
     pub fetch_on_request: bool,
     pub fetch_cooldown_secs: u64,
     pub ssh_private_key_path: String,
+    #[serde(default = "default_ssh_known_hosts_path")]
+    pub ssh_known_hosts_path: String,
+}
+
+fn default_ssh_known_hosts_path() -> String {
+    "~/.ssh/known_hosts".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -131,6 +137,7 @@ impl Default for GitConfig {
             fetch_on_request: true,
             fetch_cooldown_secs: 20,
             ssh_private_key_path: "~/.ssh/id_rsa".to_string(),
+            ssh_known_hosts_path: default_ssh_known_hosts_path(),
         }
     }
 }
@@ -196,6 +203,7 @@ impl AppConfig {
         cfg.storage.registry_file = resolve_path(&cfg.storage.registry_file, config_dir.as_deref());
         cfg.storage.static_dir = resolve_path(&cfg.storage.static_dir, config_dir.as_deref());
         cfg.git.ssh_private_key_path = resolve_path(&cfg.git.ssh_private_key_path, None);
+        cfg.git.ssh_known_hosts_path = resolve_path(&cfg.git.ssh_known_hosts_path, None);
         if let Some(config_file) = cfg.caddy.config_file.as_ref() {
             cfg.caddy.config_file = Some(resolve_path(config_file, config_dir.as_deref()));
         }
@@ -246,6 +254,12 @@ impl AppConfig {
         }
         if let Ok(value) = env::var("GITHREE_FETCH_INTERVAL") {
             cfg.fetch.interval = Some(value);
+        }
+        if let Ok(value) = env::var("GITHREE_SSH_PRIVATE_KEY_PATH") {
+            cfg.git.ssh_private_key_path = resolve_path(&value, config_dir.as_deref());
+        }
+        if let Ok(value) = env::var("GITHREE_SSH_KNOWN_HOSTS_PATH") {
+            cfg.git.ssh_known_hosts_path = resolve_path(&value, config_dir.as_deref());
         }
         cfg.fetch.sync_interval()?;
         Ok(cfg)

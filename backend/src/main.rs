@@ -566,6 +566,7 @@ mod tests {
                 fetch_on_request: false,
                 fetch_cooldown_secs: 20,
                 ssh_private_key_path: "~/.ssh/id_rsa".to_string(),
+                ssh_known_hosts_path: "~/.ssh/known_hosts".to_string(),
             },
             fetch: FetchConfig {
                 enabled: true,

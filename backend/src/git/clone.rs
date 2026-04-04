@@ -1,7 +1,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use git2::{Cred, CredentialType, FetchOptions, RemoteCallbacks, Repository, build::RepoBuilder};
+use base64::Engine;
+use git2::{
+    CertificateCheckStatus, Cred, CredentialType, FetchOptions, RemoteCallbacks, Repository,
+    build::RepoBuilder, cert::Cert,
+};
 use tracing::info;
 use url::Url;
 
@@ -84,14 +88,123 @@ pub fn repo_size_kb(local_path: &Path) -> Result<u64, AppError> {
 fn remote_callbacks(config: &AppConfig, original_url: &str) -> RemoteCallbacks<'static> {
     let mut callbacks = RemoteCallbacks::new();
     let ssh_private_key = config.git.ssh_private_key_path.clone();
+    let ssh_known_hosts = config.git.ssh_known_hosts_path.clone();
     let credential = find_credential_for_url(original_url, config);
 
     callbacks.credentials(move |url, username_from_url, allowed| {
         let key_path = PathBuf::from(&ssh_private_key);
         resolve_credential(allowed, url, username_from_url, &key_path, &credential)
     });
+    callbacks.certificate_check(move |cert, hostname| {
+        verify_ssh_host_certificate(cert, hostname, Path::new(&ssh_known_hosts))
+    });
 
     callbacks
+}
+
+fn verify_ssh_host_certificate(
+    cert: &Cert<'_>,
+    hostname: &str,
+    known_hosts_path: &Path,
+) -> Result<CertificateCheckStatus, git2::Error> {
+    let Some(host_cert) = cert.as_hostkey() else {
+        return Ok(CertificateCheckStatus::CertificatePassthrough);
+    };
+    let Some(hostkey_raw) = host_cert.hostkey() else {
+        return Err(git2::Error::from_str(
+            "ssh hostkey verification failed: missing raw host key from remote certificate",
+        ));
+    };
+    let Some(hostkey_type) = host_cert.hostkey_type() else {
+        return Err(git2::Error::from_str(
+            "ssh hostkey verification failed: missing host key type from remote certificate",
+        ));
+    };
+
+    let known_hosts_content = fs::read_to_string(known_hosts_path).map_err(|err| {
+        git2::Error::from_str(&format!(
+            "ssh hostkey verification failed for `{hostname}`: could not read known_hosts at {} ({err})",
+            known_hosts_path.display()
+        ))
+    })?;
+
+    if known_hosts_contains(
+        hostname,
+        hostkey_type.name(),
+        hostkey_raw,
+        &known_hosts_content,
+    ) {
+        return Ok(CertificateCheckStatus::CertificateOk);
+    }
+
+    Err(git2::Error::from_str(&format!(
+        "ssh hostkey verification failed for `{hostname}`: key not found in {}",
+        known_hosts_path.display()
+    )))
+}
+
+fn known_hosts_contains(
+    hostname: &str,
+    hostkey_type_name: &str,
+    hostkey_raw: &[u8],
+    known_hosts_content: &str,
+) -> bool {
+    for line in known_hosts_content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with('@') {
+            continue;
+        }
+
+        let mut parts = trimmed.split_whitespace();
+        let Some(hosts_field) = parts.next() else {
+            continue;
+        };
+        let Some(key_type) = parts.next() else {
+            continue;
+        };
+        let Some(encoded_key) = parts.next() else {
+            continue;
+        };
+
+        if key_type != hostkey_type_name || !host_matches_entry(hostname, hosts_field) {
+            continue;
+        }
+
+        let decoded_key = base64::engine::general_purpose::STANDARD.decode(encoded_key);
+        if let Ok(decoded_key) = decoded_key
+            && decoded_key.as_slice() == hostkey_raw
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn host_matches_entry(hostname: &str, hosts_field: &str) -> bool {
+    hosts_field.split(',').any(|entry| {
+        let value = entry.trim();
+        if value.is_empty() || value.starts_with('|') {
+            return false;
+        }
+
+        if value.eq_ignore_ascii_case(hostname) {
+            return true;
+        }
+
+        let bracketed_default_port = format!("[{hostname}]:22");
+        if value.eq_ignore_ascii_case(&bracketed_default_port) {
+            return true;
+        }
+
+        if let Some(stripped) = value.strip_prefix('[')
+            && let Some((host, _port)) = stripped.split_once("]:")
+        {
+            return host.eq_ignore_ascii_case(hostname);
+        }
+
+        false
+    })
 }
 
 fn resolve_credential(
@@ -190,6 +303,7 @@ mod tests {
                 fetch_on_request: false,
                 fetch_cooldown_secs: 20,
                 ssh_private_key_path: "~/.ssh/id_rsa".to_string(),
+                ssh_known_hosts_path: "~/.ssh/known_hosts".to_string(),
             },
             fetch: FetchConfig {
                 enabled: false,
@@ -395,5 +509,45 @@ mod tests {
             &None,
         );
         assert!(unsupported.is_err());
+    }
+
+    #[test]
+    fn host_matches_entry_handles_standard_and_bracketed_hosts() {
+        assert!(host_matches_entry("github.com", "github.com"));
+        assert!(host_matches_entry("github.com", "github.com,gitlab.com"));
+        assert!(host_matches_entry("github.com", "[github.com]:22"));
+        assert!(host_matches_entry("github.com", "[github.com]:2222"));
+        assert!(!host_matches_entry("github.com", "|1|hashed|entry"));
+        assert!(!host_matches_entry("github.com", "gitlab.com"));
+    }
+
+    #[test]
+    fn known_hosts_contains_validates_type_host_and_key() {
+        let ssh_key = vec![1_u8, 2, 3, 4, 5, 6, 7, 8];
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&ssh_key);
+        let content = format!(
+            "# comment\n\
+             github.com ssh-ed25519 {encoded}\n\
+             gitlab.com ssh-ed25519 {encoded}\n",
+        );
+
+        assert!(known_hosts_contains(
+            "github.com",
+            "ssh-ed25519",
+            &ssh_key,
+            &content
+        ));
+        assert!(!known_hosts_contains(
+            "github.com",
+            "ssh-rsa",
+            &ssh_key,
+            &content
+        ));
+        assert!(!known_hosts_contains(
+            "bitbucket.org",
+            "ssh-ed25519",
+            &ssh_key,
+            &content
+        ));
     }
 }
