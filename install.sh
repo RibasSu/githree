@@ -1109,6 +1109,17 @@ install_githreectl_binary() {
 
   local binary_path="${install_root}/bin/githreectl"
   if [[ -x "$binary_path" ]]; then
+    local global_bin_dir="/usr/local/bin"
+    local global_binary_path="${global_bin_dir}/githreectl"
+
+    if run_privileged mkdir -p "$global_bin_dir" \
+      && run_privileged install -m 0755 "$binary_path" "$global_binary_path"; then
+      GITHREECTL_BINARY_PATH="$global_binary_path"
+      info "Installed githreectl binary: $global_binary_path"
+      return 0
+    fi
+
+    warn "Could not publish githreectl to ${global_bin_dir}; keeping local install at ${binary_path}."
     GITHREECTL_BINARY_PATH="$binary_path"
     info "Installed githreectl binary: $binary_path"
     if [[ ":$PATH:" != *":${install_root}/bin:"* ]]; then
