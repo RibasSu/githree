@@ -25,7 +25,7 @@ async fn api_routes_trigger_fetch_when_enabled() {
     let temp = tempdir().expect("tempdir");
     let cfg = common::test_config(temp.path());
     let state = state_with_fetch_enabled(cfg).await;
-    let server = TestServer::new(router::build_router(state)).expect("create server");
+    let server = TestServer::new(router::build_router(state));
 
     let add = server
         .post("/api/repos")

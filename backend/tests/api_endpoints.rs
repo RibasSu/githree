@@ -16,7 +16,7 @@ async fn api_repository_lifecycle_and_browsing_routes_work() {
     let fixture = common::RepoFixture::new();
     let temp = tempdir().expect("tempdir");
     let state = common::test_state(temp.path()).await;
-    let server = TestServer::new(router::build_router(state)).expect("create test server");
+    let server = TestServer::new(router::build_router(state));
 
     let empty = server.get("/api/repos").await;
     empty.assert_status_ok();
@@ -203,7 +203,7 @@ async fn api_can_disable_web_repo_management() {
         .await
         .expect("create repo registry");
     let state = AppState::new(cfg, registry);
-    let server = TestServer::new(router::build_router(state)).expect("create test server");
+    let server = TestServer::new(router::build_router(state));
 
     let settings = server.get("/api/settings").await;
     settings.assert_status_ok();
@@ -229,7 +229,7 @@ async fn api_error_paths_return_expected_codes() {
     let fixture = common::RepoFixture::new();
     let temp = tempdir().expect("tempdir");
     let state = common::test_state(temp.path()).await;
-    let server = TestServer::new(router::build_router(state)).expect("create test server");
+    let server = TestServer::new(router::build_router(state));
 
     let bad_add = server
         .post("/api/repos")

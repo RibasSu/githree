@@ -27,7 +27,7 @@ async fn router_serves_static_index_when_static_dir_exists() {
         .expect("create registry");
     let state = AppState::new(cfg, registry);
 
-    let server = TestServer::new(router::build_router(state)).expect("create test server");
+    let server = TestServer::new(router::build_router(state));
 
     let root = server.get("/").await;
     root.assert_status_ok();
