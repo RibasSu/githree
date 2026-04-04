@@ -29,6 +29,9 @@ APP_HEALTH_ATTEMPTS=45
 SOURCE_REPO_URL="https://github.com/RibasSu/githree.git"
 FALLBACK_PROJECT_DIR="$INSTALL_DIR/source/githree"
 PROMPT_INPUT="/dev/stdin"
+GITHREECTL_CONFIG_PATH=""
+GITHREECTL_BINARY_PATH=""
+GITHREECTL_INSTALL_ROOT=""
 
 if [[ -t 1 && -w /dev/tty ]]; then
   HAS_TTY=1
@@ -339,6 +342,69 @@ install_git() {
       die "Automatic Git installation is not supported on this OS/package manager."
       ;;
   esac
+}
+
+install_rust_toolchain() {
+  info "Attempting Rust toolchain installation for $OS_NAME ..."
+
+  if command -v curl >/dev/null 2>&1; then
+    if run bash -lc "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable"; then
+      if [[ -f "${HOME:-}/.cargo/env" ]]; then
+        # shellcheck disable=SC1090
+        . "${HOME}/.cargo/env"
+      fi
+      export PATH="${HOME:-}/.cargo/bin:${PATH}"
+      if command -v cargo >/dev/null 2>&1; then
+        info "Rust toolchain installed via rustup."
+        return 0
+      fi
+    else
+      warn "rustup installation command failed."
+    fi
+  fi
+
+  warn "rustup install path unavailable; trying package manager fallback."
+  case "$PKG_MANAGER" in
+    apt)
+      run_privileged apt-get update || return 1
+      run_privileged apt-get install -y rustc cargo || return 1
+      ;;
+    dnf)
+      run_privileged dnf install -y rust cargo || return 1
+      ;;
+    pacman)
+      run_privileged pacman -Sy --noconfirm rust || return 1
+      ;;
+    zypper)
+      run_privileged zypper --non-interactive install rust cargo || return 1
+      ;;
+    brew)
+      run brew install rust || return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  command -v cargo >/dev/null 2>&1
+}
+
+ensure_cargo_for_githreectl() {
+  if command -v cargo >/dev/null 2>&1; then
+    return 0
+  fi
+
+  warn "Cargo is not installed; required to build githreectl host CLI."
+  if ! prompt_yes_no "Install Rust toolchain now to build githreectl?" "yes"; then
+    return 1
+  fi
+
+  if ! install_rust_toolchain; then
+    warn "Rust installation failed or is unsupported on this host."
+    return 1
+  fi
+
+  command -v cargo >/dev/null 2>&1
 }
 
 ensure_command() {
@@ -795,6 +861,80 @@ EOF
   info "Caddy domain/host: $domain (upstream githree:3001, host app port ${app_host_port})"
 }
 
+default_githreectl_config_path() {
+  if [[ -n "${GITHREECTL_CONFIG:-}" ]]; then
+    printf '%s\n' "$GITHREECTL_CONFIG"
+    return 0
+  fi
+
+  if [[ -n "${HOME:-}" ]]; then
+    printf '%s\n' "${HOME}/.config/githreectl/config.env"
+    return 0
+  fi
+
+  printf '%s\n' "${INSTALL_DIR}/githreectl/config.env"
+}
+
+write_githreectl_config() {
+  local compose_file="$1"
+  local deploy_mode="$2"
+  local image_ref="$3"
+  local project_root="$4"
+  local config_path
+  config_path="$(default_githreectl_config_path)"
+
+  run mkdir -p "$(dirname "$config_path")"
+
+  cat >"$config_path" <<EOF
+project_dir=${project_root}
+compose_file=${compose_file}
+service_name=githree
+deploy_mode=${deploy_mode}
+image_ref=${image_ref}
+EOF
+
+  GITHREECTL_CONFIG_PATH="$config_path"
+  info "Generated githreectl config: $config_path"
+}
+
+install_githreectl_binary() {
+  local crate_dir="$PROJECT_DIR/tools/githreectl"
+  if [[ ! -f "$crate_dir/Cargo.toml" ]]; then
+    warn "githreectl source was not found at ${crate_dir}; skipping host CLI install."
+    return 1
+  fi
+
+  if ! ensure_cargo_for_githreectl; then
+    warn "Skipping githreectl binary install because Cargo is unavailable."
+    return 1
+  fi
+
+  local install_root
+  if [[ -n "${HOME:-}" ]]; then
+    install_root="${HOME}/.local"
+  else
+    install_root="${INSTALL_DIR}/githreectl-local"
+  fi
+  GITHREECTL_INSTALL_ROOT="$install_root"
+
+  run mkdir -p "$install_root"
+  run cargo install --path "$crate_dir" --force --root "$install_root"
+
+  local binary_path="${install_root}/bin/githreectl"
+  if [[ -x "$binary_path" ]]; then
+    GITHREECTL_BINARY_PATH="$binary_path"
+    info "Installed githreectl binary: $binary_path"
+    if [[ ":$PATH:" != *":${install_root}/bin:"* ]]; then
+      warn "githreectl install dir is not currently in PATH: ${install_root}/bin"
+      warn "Add it with: export PATH=\"${install_root}/bin:\$PATH\""
+    fi
+    return 0
+  fi
+
+  warn "githreectl install completed but binary was not found at expected path: $binary_path"
+  return 1
+}
+
 main() {
   print_banner
   info "Starting Githree Docker installer"
@@ -878,9 +1018,37 @@ main() {
   step "Verifying deployment health"
   verify_deployment_health "$compose_file" "$app_port" || die "Deployment failed health verification. Check detailed logs at $LOG_FILE."
 
+  step "Configuring host management CLI"
+  write_githreectl_config "$compose_file" "$DEPLOY_MODE" "$image_ref" "$ROOT_DIR"
+  if prompt_yes_no "Build and install githreectl host CLI now?" "yes"; then
+    install_githreectl_binary || true
+  else
+    warn "Skipped githreectl binary installation."
+  fi
+
   success "Deployment completed."
   success "App URL: http://localhost:${app_port}"
   info "Manage this installed stack with:"
+  if [[ -n "$GITHREECTL_BINARY_PATH" ]]; then
+    info "  githreectl status"
+    info "  githreectl repo list"
+    info "  githreectl repo add --url <repo_url> --name <alias>"
+    info "  githreectl backup"
+    info "  githreectl update --backup"
+    info "  githreectl config: ${GITHREECTL_CONFIG_PATH}"
+  else
+    local fallback_install_root="$GITHREECTL_INSTALL_ROOT"
+    if [[ -z "$fallback_install_root" ]]; then
+      if [[ -n "${HOME:-}" ]]; then
+        fallback_install_root="${HOME}/.local"
+      else
+        fallback_install_root="${INSTALL_DIR}/githreectl-local"
+      fi
+    fi
+    info "  githreectl was not installed automatically."
+    info "  Build later with: cargo install --path ${PROJECT_DIR}/tools/githreectl --force --root ${fallback_install_root}"
+    info "  Config file: ${GITHREECTL_CONFIG_PATH}"
+  fi
   info "  ${COMPOSE_CMD[*]} -f $compose_file ps"
   info "  ${COMPOSE_CMD[*]} -f $compose_file logs -f githree"
   info "  ${COMPOSE_CMD[*]} -f $compose_file exec -T githree githree repo list"

@@ -48,6 +48,7 @@ The GitLab pipeline validates build/test and can publish the Docker image to the
 ```text
 backend/              Rust backend API and git services
 frontend/             SvelteKit frontend
+tools/githreectl/     Host CLI for installed stack management
 config/default.toml   Runtime config
 data/                 Runtime state (repos cache + repos.json)
 Dockerfile
@@ -100,6 +101,16 @@ docker compose -f .run/install/docker-compose.install.yml exec -T githree githre
 
 If your user cannot access Docker socket, run the same commands with `sudo`.
 
+If you enabled host CLI installation during `install.sh`, you can manage everything with:
+
+```bash
+githreectl status
+githreectl repo list
+githreectl repo add --url https://github.com/user/repo.git --name my-repo
+githreectl backup
+githreectl update --backup
+```
+
 What the installer does:
 
 - Detects Linux/macOS and checks required dependencies (`docker`, compose support)
@@ -110,6 +121,8 @@ What the installer does:
 - Generates runtime deployment files:
   - `.run/install/docker-compose.install.yml`
   - `.run/install/Caddyfile` (when Caddy is enabled)
+  - `~/.config/githreectl/config.env` (or `$GITHREECTL_CONFIG`) for host CLI
+- Optionally builds and installs host CLI (`githreectl`) to `~/.local/bin`
 - Pulls a prebuilt GHCR image by default (optional local build fallback)
   - Default image: `ghcr.io/sarahsec/githree:latest`
   - Override repo with `GITHREE_IMAGE_REPO=<repo>`
@@ -216,6 +229,27 @@ Local source checkout fallback:
 
 ```bash
 cargo run --manifest-path backend/Cargo.toml -- repo add --url https://github.com/user/repo.git --name my-repo
+```
+
+### `githreectl` Host CLI
+
+`githreectl` is a host-side helper for installations created by `install.sh`.
+It reads stack metadata from `~/.config/githreectl/config.env` and works from any directory.
+
+Examples:
+
+```bash
+githreectl status
+githreectl logs --follow
+githreectl repo add --url https://github.com/user/repo.git --name my-repo
+githreectl backup --output ./backup/githree.tar.gz
+githreectl update --backup
+```
+
+If it is not in your `PATH`, use:
+
+```bash
+~/.local/bin/githreectl status
 ```
 
 You can override this flag at runtime:

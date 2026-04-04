@@ -16,7 +16,6 @@
   let repoUrlError = $state('');
 
   const webRepoManagement = $derived(settings?.web_repo_management ?? false);
-  const commandReposDir = $derived(settings?.repos_dir || './data/repos');
   const commandRegistryFile = $derived(settings?.registry_file || './data/repos.json');
 
   const filteredRepos = $derived(
@@ -151,12 +150,22 @@
     return `docker compose -f .run/install/docker-compose.install.yml exec -T githree githree ${subcommand}`;
   }
 
+  function buildGithreectlCommand(subcommand: string): string {
+    return `githreectl ${subcommand}`;
+  }
+
   function buildAddCommand(url: string, alias?: string): string {
     const urlArg = shellQuote(url);
     const nameArg = alias?.trim().length ? ` --name ${shellQuote(alias.trim())}` : '';
     const subcommand = `repo add --url ${urlArg}${nameArg}`;
 
     return [
+      '# Host CLI (recommended after install.sh)',
+      buildGithreectlCommand(subcommand),
+      '',
+      '# If githreectl is outside PATH',
+      `~/.local/bin/${buildGithreectlCommand(subcommand)}`,
+      '',
       '# Docker (installer stack - recommended)',
       buildDockerCommand(subcommand),
       '',
@@ -176,6 +185,12 @@
     const subcommand = `repo remove --name ${nameArg}`;
 
     return [
+      '# Host CLI (recommended after install.sh)',
+      buildGithreectlCommand(subcommand),
+      '',
+      '# If githreectl is outside PATH',
+      `~/.local/bin/${buildGithreectlCommand(subcommand)}`,
+      '',
       '# Docker (installer stack - recommended)',
       buildDockerCommand(subcommand),
       '',
