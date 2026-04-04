@@ -880,6 +880,11 @@ main() {
 
   success "Deployment completed."
   success "App URL: http://localhost:${app_port}"
+  info "Manage this installed stack with:"
+  info "  ${COMPOSE_CMD[*]} -f $compose_file ps"
+  info "  ${COMPOSE_CMD[*]} -f $compose_file logs -f githree"
+  info "  ${COMPOSE_CMD[*]} -f $compose_file exec -T githree githree repo list"
+  info "  ${COMPOSE_CMD[*]} -f $compose_file exec -T githree githree repo add --url <repo_url> --name <alias>"
   if [[ "$use_caddy" == "yes" ]]; then
     info "Caddy enabled. Check routes with: ${COMPOSE_CMD[*]} -f $compose_file ps"
   fi

@@ -91,6 +91,15 @@ Local script mode (inside a checkout):
 ./install.sh --yes
 ```
 
+After install, manage the running stack with the generated compose file:
+
+```bash
+docker compose -f .run/install/docker-compose.install.yml ps
+docker compose -f .run/install/docker-compose.install.yml exec -T githree githree repo list
+```
+
+If your user cannot access Docker socket, run the same commands with `sudo`.
+
 What the installer does:
 
 - Detects Linux/macOS and checks required dependencies (`docker`, compose support)
