@@ -66,11 +66,14 @@ What it does:
 - Detects Linux/macOS and checks required dependencies (`docker`, compose support)
 - Offers to install missing dependencies immediately when possible
 - Verifies Docker daemon availability (and helps start it)
+- If a full checkout is not found next to `install.sh`, it bootstraps source from `https://github.com/RibasSu/githree.git`
 - Prompts for ports, `RUST_LOG`, and optional Caddy reverse proxy setup
 - Generates runtime deployment files:
   - `.run/install/docker-compose.install.yml`
   - `.run/install/Caddyfile` (when Caddy is enabled)
 - Pulls a prebuilt GHCR image by default (optional local build fallback)
+  - Default image: `ghcr.io/sarahsec/githree:latest`
+  - Override repo with `GITHREE_IMAGE_REPO=<repo>`
 - Writes a detailed timestamped log file:
   - `.logs/install-YYYYMMDD-HHMMSS.log`
 

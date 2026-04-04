@@ -5,6 +5,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 RUN_DIR="$ROOT_DIR/.run"
 LOG_DIR="$ROOT_DIR/.logs"
 INSTALL_DIR="$RUN_DIR/install"
+PROJECT_DIR="$ROOT_DIR"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 LOG_FILE="$LOG_DIR/install-${TIMESTAMP}.log"
 HAS_TTY=0
@@ -17,6 +18,8 @@ DEFAULT_IMAGE_REPO="ghcr.io/sarahsec/githree"
 DEFAULT_IMAGE_TAG="latest"
 DOCKER_STARTUP_ATTEMPTS=60
 APP_HEALTH_ATTEMPTS=45
+SOURCE_REPO_URL="https://github.com/RibasSu/githree.git"
+FALLBACK_PROJECT_DIR="$INSTALL_DIR/source/githree"
 
 if [[ -t 1 && -w /dev/tty ]]; then
   HAS_TTY=1
@@ -239,36 +242,11 @@ detect_os() {
 }
 
 detect_default_image_repository() {
-  local origin_url repo_path owner repo
-  origin_url="$(git -C "$ROOT_DIR" remote get-url origin 2>/dev/null || true)"
-  if [[ -z "$origin_url" ]]; then
-    printf '%s\n' "$DEFAULT_IMAGE_REPO"
+  if [[ -n "${GITHREE_IMAGE_REPO:-}" ]]; then
+    printf '%s\n' "$GITHREE_IMAGE_REPO"
     return 0
   fi
-
-  repo_path=""
-  if [[ "$origin_url" =~ ^git@github\.com:(.+)$ ]]; then
-    repo_path="${BASH_REMATCH[1]}"
-  elif [[ "$origin_url" =~ ^https?://github\.com/(.+)$ ]]; then
-    repo_path="${BASH_REMATCH[1]}"
-  elif [[ "$origin_url" =~ ^ssh://git@github\.com/(.+)$ ]]; then
-    repo_path="${BASH_REMATCH[1]}"
-  fi
-
-  if [[ -z "$repo_path" ]]; then
-    printf '%s\n' "$DEFAULT_IMAGE_REPO"
-    return 0
-  fi
-
-  repo_path="${repo_path%.git}"
-  owner="${repo_path%%/*}"
-  repo="${repo_path##*/}"
-  if [[ -z "$owner" || -z "$repo" || "$owner" == "$repo_path" ]]; then
-    printf '%s\n' "$DEFAULT_IMAGE_REPO"
-    return 0
-  fi
-
-  printf 'ghcr.io/%s/%s\n' "${owner,,}" "${repo,,}"
+  printf '%s\n' "$DEFAULT_IMAGE_REPO"
 }
 
 install_docker() {
@@ -322,6 +300,31 @@ install_caddy() {
   esac
 }
 
+install_git() {
+  info "Attempting Git installation for $OS_NAME ..."
+  case "$PKG_MANAGER" in
+    apt)
+      run_privileged apt-get update
+      run_privileged apt-get install -y git
+      ;;
+    dnf)
+      run_privileged dnf install -y git
+      ;;
+    pacman)
+      run_privileged pacman -Sy --noconfirm git
+      ;;
+    zypper)
+      run_privileged zypper --non-interactive install git
+      ;;
+    brew)
+      run brew install git
+      ;;
+    *)
+      die "Automatic Git installation is not supported on this OS/package manager."
+      ;;
+  esac
+}
+
 ensure_command() {
   local cmd="$1"
   local package_name="$2"
@@ -340,6 +343,41 @@ ensure_command() {
   fi
 
   command -v "$cmd" >/dev/null 2>&1 || die "$cmd is still unavailable after installation attempt."
+}
+
+is_valid_project_dir() {
+  local candidate="$1"
+  [[ -d "$candidate" ]] \
+    && [[ -f "$candidate/Dockerfile" ]] \
+    && [[ -f "$candidate/config/default.toml" ]]
+}
+
+ensure_project_source() {
+  if is_valid_project_dir "$PROJECT_DIR"; then
+    info "Using local project source at: $PROJECT_DIR"
+    return 0
+  fi
+
+  warn "No complete Githree checkout found next to install.sh."
+  warn "Bootstrapping source from ${SOURCE_REPO_URL}"
+  ensure_command git "Git" install_git
+
+  local fallback_parent
+  fallback_parent="$(dirname "$FALLBACK_PROJECT_DIR")"
+  mkdir -p "$fallback_parent"
+
+  if is_valid_project_dir "$FALLBACK_PROJECT_DIR"; then
+    info "Using cached bootstrapped source at: $FALLBACK_PROJECT_DIR"
+  else
+    if [[ -e "$FALLBACK_PROJECT_DIR" ]]; then
+      run rm -rf "$FALLBACK_PROJECT_DIR"
+    fi
+    run git clone --depth 1 "$SOURCE_REPO_URL" "$FALLBACK_PROJECT_DIR"
+  fi
+
+  is_valid_project_dir "$FALLBACK_PROJECT_DIR" || die "Bootstrapped source is invalid: $FALLBACK_PROJECT_DIR"
+  PROJECT_DIR="$FALLBACK_PROJECT_DIR"
+  info "Project source ready at: $PROJECT_DIR"
 }
 
 COMPOSE_CMD=()
@@ -672,8 +710,8 @@ EOF
   else
     runtime_block=$(cat <<EOF
     build:
-      context: ${ROOT_DIR}
-      dockerfile: ${ROOT_DIR}/Dockerfile
+      context: ${PROJECT_DIR}
+      dockerfile: ${PROJECT_DIR}/Dockerfile
 EOF
 )
   fi
@@ -713,7 +751,7 @@ ${runtime_block}
       - "${app_port}:3001"
     volumes:
       - githree_data:/app/data
-      - ${ROOT_DIR}/config:/app/config:ro
+      - ${PROJECT_DIR}/config:/app/config:ro
     environment:
       - RUST_LOG=${rust_log}
 ${caddy_block}
@@ -744,11 +782,15 @@ EOF
 main() {
   print_banner
   info "Starting Githree Docker installer"
-  info "Repository root: $ROOT_DIR"
+  info "Installer root: $ROOT_DIR"
   info "Installer log: $LOG_FILE"
 
   step "Detecting host OS and package manager"
   detect_os
+
+  step "Ensuring Githree source checkout is available"
+  ensure_project_source
+  info "Project source: $PROJECT_DIR"
 
   step "Checking Docker installation"
   ensure_command docker "Docker" install_docker
