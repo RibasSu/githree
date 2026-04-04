@@ -50,6 +50,8 @@
   let fileSearchLoading = $state(false);
   let fileSearchActiveIndex = $state(0);
   let fileSearchBuildToken = 0;
+  let loadRequestToken = 0;
+  let isPageActive = true;
   let codeMenuOpen = $state(false);
   let cloneTab = $state<'https' | 'ssh' | 'cli'>('https');
   let loading = $state(true);
@@ -74,6 +76,9 @@
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      isPageActive = false;
+      fileSearchBuildToken += 1;
+      loadRequestToken += 1;
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -93,9 +98,24 @@
 
   async function bootstrap() {
     loading = true;
+    const repoName = data.repo?.trim();
+    if (!repoName) {
+      repo = null;
+      refs = null;
+      tree = [];
+      readme = null;
+      readmeHtml = '';
+      recentCommits = [];
+      languageStats = [];
+      totalCommitCount = null;
+      loading = false;
+      return;
+    }
+    const requestToken = ++loadRequestToken;
     try {
       const all = await api.listRepos();
-      repo = all.find((item) => item.name === data.repo) ?? null;
+      if (!isPageActive || requestToken !== loadRequestToken) return;
+      repo = all.find((item) => item.name === repoName) ?? null;
       if (repo === null) {
         refs = null;
         tree = [];
@@ -109,17 +129,22 @@
       if (selectedRef.length === 0) {
         selectedRef = data.refName || repo?.default_branch || 'main';
       }
-      await loadForRef();
+      await loadForRef(repoName, requestToken);
     } finally {
-      loading = false;
+      if (isPageActive && requestToken === loadRequestToken) {
+        loading = false;
+      }
     }
   }
 
-  async function loadForRef() {
-    if (selectedRef.length === 0) return;
+  async function loadForRef(repoNameOverride?: string, requestTokenOverride?: number) {
+    const repoName = repoNameOverride ?? data.repo?.trim() ?? '';
+    if (!repoName || selectedRef.length === 0 || !isPageActive) return;
+    const requestToken = requestTokenOverride ?? ++loadRequestToken;
     const requestedRef = selectedRef;
     try {
-      const nextRefs = await api.getRefs(data.repo);
+      const nextRefs = await api.getRefs(repoName);
+      if (!isPageActive || requestToken !== loadRequestToken) return;
       refs = nextRefs;
 
       let effectiveRef = requestedRef;
@@ -132,59 +157,65 @@
 
       if (effectiveRef !== selectedRef) {
         selectedRef = effectiveRef;
-        await goto(`/${data.repo}?ref=${encodeURIComponent(effectiveRef)}`, {
+        await goto(`/${repoName}?ref=${encodeURIComponent(effectiveRef)}`, {
           replaceState: true,
           noScroll: true
         });
+        if (!isPageActive || requestToken !== loadRequestToken) return;
       }
 
       const [nextTree, nextReadme, commits, languages, commitCount, refreshedRepos] = await Promise.all([
-        api.getTree(data.repo, effectiveRef, ''),
-        api.getReadme(data.repo, effectiveRef).catch(() => null),
-        api.getCommits(data.repo, effectiveRef, { limit: 30 }),
-        api.getLanguages(data.repo, effectiveRef).catch(() => []),
-        api.getCommitCount(data.repo, effectiveRef).catch(() => null),
+        api.getTree(repoName, effectiveRef, ''),
+        api.getReadme(repoName, effectiveRef).catch(() => null),
+        api.getCommits(repoName, effectiveRef, { limit: 30 }),
+        api.getLanguages(repoName, effectiveRef).catch(() => []),
+        api.getCommitCount(repoName, effectiveRef).catch(() => null),
         api.listRepos(true).catch(() => null)
       ]);
-      if (selectedRef !== effectiveRef) return;
+      if (!isPageActive || requestToken !== loadRequestToken || selectedRef !== effectiveRef) return;
       tree = nextTree;
       readme = nextReadme;
       recentCommits = commits;
       languageStats = languages;
       totalCommitCount = commitCount?.count ?? null;
       if (Array.isArray(refreshedRepos)) {
-        const refreshed = refreshedRepos.find((item) => item.name === data.repo);
+        const refreshed = refreshedRepos.find((item) => item.name === repoName);
         if (refreshed) {
           repo = refreshed;
         }
       }
       fileSearchEntries = [];
       fileSearchActiveIndex = 0;
-      await renderReadme();
-      void buildFileSearchIndex(effectiveRef);
+      await renderReadme(repoName, effectiveRef);
+      if (!isPageActive || requestToken !== loadRequestToken) return;
+      void buildFileSearchIndex(repoName, effectiveRef, requestToken);
     } catch {
       // toast already emitted
     }
   }
 
-  async function renderReadme() {
+  async function renderReadme(repoName: string, refName: string) {
     if (!readme) {
       readmeHtml = '';
       return;
     }
     const rendered = await marked.parse(readme.content);
-    const rewritten = rewriteReadmeLinks(rendered, data.repo, selectedRef || 'main', readme.path);
+    const rewritten = rewriteReadmeLinks(rendered, repoName, refName, readme.path);
     const highlighted = await highlightMarkdownCodeBlocks(rewritten);
     readmeHtml = DOMPurify.sanitize(highlighted);
   }
 
   async function changeRef(value: string) {
     if (value === selectedRef) return;
+    const repoName = data.repo?.trim();
+    if (!repoName) return;
     selectedRef = value;
     goToFilePath = '';
     goToFileFocused = false;
-    await goto(`/${data.repo}?ref=${encodeURIComponent(value)}`, { replaceState: true, noScroll: true });
-    await loadForRef();
+    const requestToken = ++loadRequestToken;
+    await goto(`/${repoName}?ref=${encodeURIComponent(value)}`, { replaceState: true, noScroll: true });
+    if (!isPageActive || requestToken !== loadRequestToken) return;
+    await loadForRef(repoName, requestToken);
   }
 
   function sshCloneCommand(url: string): string {
@@ -266,7 +297,8 @@
     goToFileFocused = false;
   }
 
-  async function buildFileSearchIndex(refName: string) {
+  async function buildFileSearchIndex(repoName: string, refName: string, requestToken: number) {
+    if (!repoName || !isPageActive || requestToken !== loadRequestToken) return;
     const buildToken = ++fileSearchBuildToken;
     fileSearchLoading = true;
     fileSearchEntries = [];
@@ -284,13 +316,14 @@
         nextEntries.length < MAX_ENTRIES &&
         traversedDirectories < MAX_DIRECTORIES
       ) {
+        if (!isPageActive || requestToken !== loadRequestToken) return;
         const currentPath = queue.shift() ?? '';
         if (visited.has(currentPath)) continue;
         visited.add(currentPath);
         traversedDirectories += 1;
 
-        const entries = await api.getTree(data.repo, refName, currentPath);
-        if (buildToken !== fileSearchBuildToken) return;
+        const entries = await api.getTree(repoName, refName, currentPath);
+        if (!isPageActive || requestToken !== loadRequestToken || buildToken !== fileSearchBuildToken) return;
 
         for (const entry of entries) {
           nextEntries.push({
@@ -304,14 +337,18 @@
         }
       }
 
-      if (buildToken !== fileSearchBuildToken) return;
+      if (!isPageActive || requestToken !== loadRequestToken || buildToken !== fileSearchBuildToken) return;
 
       nextEntries.sort((left, right) => left.path.localeCompare(right.path));
       fileSearchEntries = nextEntries;
     } catch {
       // toast already emitted by API client
     } finally {
-      if (buildToken === fileSearchBuildToken) {
+      if (
+        isPageActive &&
+        requestToken === loadRequestToken &&
+        buildToken === fileSearchBuildToken
+      ) {
         fileSearchLoading = false;
       }
     }
