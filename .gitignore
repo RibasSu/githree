@@ -20,6 +20,7 @@ Thumbs.db
 # ----- Rust -----
 /target/
 /backend/target/
+/tools/githreectl/target/
 **/*.rs.bk
 coverage
 
