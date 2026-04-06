@@ -1,6 +1,6 @@
 # Githree
 
-Githree is an open-source, GitLab-inspired, read-only repository browser.
+Githree is an open-source, read-only repository browser.
 
 - No user accounts
 - No login/session flow
