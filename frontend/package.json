@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@skeletonlabs/skeleton": "^5.0.0",
-    "dompurify": "^3.4.12",
+    "dompurify": "^3.4.13",
     "lucide-svelte": "^1.0.1",
     "marked": "^18.0.7",
     "shiki": "^4.4.1"
